@@ -1,16 +1,19 @@
 import { createRng, type Rng } from './rng.ts';
 import { generateHero } from './hero.ts';
-import { liveMonth, newLife, type Emit } from './dream.ts';
+import { defaultSetup, liveMonth, newLife, type Emit } from './dream.ts';
+import { instinctChoice, resolveFork } from './forks.ts';
+import { BLESSING_COST, startPlace } from '../data/knowledge.ts';
 import {
   CHARGE_MAX,
   DEFAULT_PRIORITY,
   applyReward,
   autoPick,
+  fateFor,
   makeOffer,
   realBreakthrough,
   realityBeat,
 } from './reality.ts';
-import type { DreamSummary, GameEvent, GameState, Life, RewardKind } from './types.ts';
+import type { DreamSetup, DreamSummary, GameEvent, GameState, Life, RewardKind } from './types.ts';
 
 export { START_AGE_MONTHS } from './dream.ts';
 
@@ -28,12 +31,14 @@ export function newGame(seed: number): GameState {
     beat: 0,
     rngState: 0,
     hero,
-    life: newLife(hero, 1),
+    life: newLife(hero, 1, defaultSetup(hero)),
     phase: 'dreaming',
     offer: null,
     charges: CHARGE_MAX - 1,
     chargeBeats: 0,
     autopilot: { enabled: false, priority: [...DEFAULT_PRIORITY] },
+    setup: defaultSetup(hero),
+    waitForMe: false,
     dreamsEnded: 0,
     journal: [],
     nextEntryId: 1,
@@ -58,7 +63,7 @@ export function advanceSteps(state: GameState, steps: number): GameState {
 /** Plays forward exactly `months` dreamed months, waking into choices as needed. For tests and tools. Pure. */
 export function advanceMonths(state: GameState, months: number): GameState {
   return mutate(state, (s, rng) => {
-    for (let i = 0; i < months && s.phase === 'dreaming'; i++) applyMonth(s, rng);
+    for (let i = 0; i < months && s.phase === 'dreaming' && !s.life.fork; i++) applyMonth(s, rng);
   });
 }
 
@@ -75,6 +80,29 @@ export function catchUp(state: GameState, steps: number): GameState {
 export function chooseReward(state: GameState, index: number): GameState {
   if (state.phase !== 'choosing' || !state.offer?.[index]) return state;
   return mutate(state, (s, rng) => takeReward(s, index, false, rng));
+}
+
+/** Answers the fork the dream is waiting on. */
+export function chooseFork(state: GameState, option: string): GameState {
+  if (state.phase !== 'dreaming' || !state.life.fork?.options.includes(option)) return state;
+  return mutate(state, (s, rng) => {
+    resolveFork(s, rng, emitter(s), option, false);
+    if (s.life.death) wake(s, rng);
+  });
+}
+
+/** Changes what the next dream will be like. Costs are paid when it starts. */
+export function setSetup(state: GameState, patch: Partial<DreamSetup>): GameState {
+  return { ...state, setup: { ...state.setup, ...patch } };
+}
+
+export function setWaitForMe(state: GameState, waitForMe: boolean): GameState {
+  return { ...state, waitForMe };
+}
+
+/** Fate points the setup would cost now, or null if it cannot be afforded as chosen. */
+export function setupCost(state: GameState, setup: DreamSetup = state.setup): number {
+  return startPlace(setup.start).cost + (setup.blessing ? BLESSING_COST : 0);
 }
 
 export function attemptRealBreakthrough(state: GameState): GameState {
@@ -102,8 +130,19 @@ function applyBeat(s: GameState, rng: Rng): void {
   realityBeat(s, rng, emitter(s));
   switch (s.phase) {
     case 'dreaming': {
+      const fork = s.life.fork;
+      if (fork) {
+        // The dream waits for an answer; after a while the dreamer's instinct gives one.
+        if (!s.waitForMe && s.beat >= fork.deadline) {
+          resolveFork(s, rng, emitter(s), instinctChoice(s), true);
+          if (s.life.death) wake(s, rng);
+        }
+        return;
+      }
       const before = s.nextEntryId;
-      for (let m = 0; m < MAX_QUIET_MONTHS && s.nextEntryId === before && s.phase === 'dreaming'; m++) applyMonth(s, rng);
+      for (let m = 0; m < MAX_QUIET_MONTHS && s.nextEntryId === before && s.phase === 'dreaming' && !s.life.fork; m++) {
+        applyMonth(s, rng);
+      }
       return;
     }
     case 'choosing':
@@ -112,7 +151,7 @@ function applyBeat(s: GameState, rng: Rng): void {
     case 'resting':
       if (s.charges > 0 && s.hero.injuryBeats === 0) {
         s.charges -= 1;
-        s.life = newLife(s.hero, s.life.n + 1);
+        s.life = newLife(s.hero, s.life.n + 1, paySetup(s));
         s.phase = 'dreaming';
         beginDream(s);
       }
@@ -135,10 +174,32 @@ function takeReward(s: GameState, index: number, auto: boolean, rng: Rng): void 
   s.phase = 'resting';
 }
 
+/**
+ * The setup the next dream actually gets: places the hero does not know fall back to the home sect, and whatever
+ * the fate points cannot cover is dropped (the blessing first). Pays for what is kept.
+ */
+function paySetup(s: GameState): DreamSetup {
+  const { hero } = s;
+  const setup = { ...s.setup };
+  const place = startPlace(setup.start);
+  if (place.knowledge && !hero.knowledge.includes(place.knowledge)) setup.start = startPlace('').key;
+  if (setup.blessing && setupCost(s, setup) > hero.fate) setup.blessing = false;
+  if (setupCost(s, setup) > hero.fate) setup.start = startPlace('').key;
+  hero.fate -= setupCost(s, setup);
+  return setup;
+}
+
 function beginDream(s: GameState): void {
   const { hero, life } = s;
   record(s, { kind: 'dreamStart', dream: life.n });
-  record(s, { kind: 'joinSect', ageMonths: life.ageMonths, root: hero.root, path: hero.path });
+  record(s, {
+    kind: 'joinSect',
+    ageMonths: life.ageMonths,
+    root: hero.root,
+    path: life.path,
+    start: life.start,
+    instinct: life.instinct,
+  });
 }
 
 function wake(s: GameState, rng: Rng): void {
@@ -147,6 +208,7 @@ function wake(s: GameState, rng: Rng): void {
   s.chronicle.push(summary);
   if (s.chronicle.length > CHRONICLE_LIMIT) s.chronicle.splice(0, s.chronicle.length - CHRONICLE_LIMIT);
   s.dreamsEnded += 1;
+  s.hero.fate += fateFor(summary.score);
   record(s, { kind: 'wake', dream: life.n, score: summary.score });
   s.offer = makeOffer(s.hero, life, summary.score, rng);
   s.phase = 'choosing';

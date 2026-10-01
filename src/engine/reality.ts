@@ -18,7 +18,12 @@ export const INJURY_BEATS = 600;
 /** Waking meditation: one beat is worth this many dreamed months of meditation. */
 const REAL_MONTHS_PER_BEAT = 1 / 200;
 
-export const DEFAULT_PRIORITY: RewardKind[] = ['qi', 'talent', 'item', 'technique', 'cultivation', 'stats'];
+export const DEFAULT_PRIORITY: RewardKind[] = ['knowledge', 'qi', 'talent', 'item', 'technique', 'cultivation', 'stats'];
+
+/** Fate points earned by a finished dream. */
+export function fateFor(score: number): number {
+  return 1 + Math.floor(score / 80);
+}
 
 /** Quality tier of a dream's rewards from its life score. */
 export function rewardQuality(score: number): number {
@@ -120,7 +125,10 @@ export function makeOffer(hero: Hero, life: Life, score: number, rng: Rng): Rewa
   const talents = talentOffers(hero, life, q, rng);
   if (talents[0]) candidates.push({ kind: 'talent', talent: talents[0] });
 
+  // Something found in this dream and never known before is always on the table.
   const offer: Reward[] = [];
+  const found = life.discoveries.find((k) => !hero.knowledge.includes(k));
+  if (found) offer.push({ kind: 'knowledge', key: found });
   const pool = [...candidates];
   while (offer.length < 3 && pool.length > 0) offer.push(pool.splice(Math.floor(nextFloat(rng) * pool.length), 1)[0]!);
   // Not enough real choices: fill with another talent and stat tempering.
@@ -195,6 +203,9 @@ export function applyReward(s: GameState, reward: Reward, rng: Rng, emit: Emit):
       return;
     case 'stats':
       for (const key of STAT_KEYS) hero.stats[key] += reward.stats[key] ?? 0;
+      return;
+    case 'knowledge':
+      if (!hero.knowledge.includes(reward.key)) hero.knowledge.push(reward.key);
       return;
   }
 }

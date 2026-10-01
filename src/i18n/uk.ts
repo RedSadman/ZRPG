@@ -2,6 +2,7 @@ import { REALMS } from '../data/realms.ts';
 import { CULTIVATION_TECHNIQUES } from '../data/techniques.ts';
 import { realmOf, stageOf } from '../engine/levels.ts';
 import type { Messages, Noun, PluralForms } from './types.ts';
+import { ukForks } from './uk-forks.ts';
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -64,6 +65,7 @@ export const uk: Messages = {
   roots: { trash: 'сміттєвий', common: 'звичайний', rare: 'рідкісний', heavenly: 'небесний' },
   paths: { sword: 'Шлях Меча', body: 'Загартування Тіла', alchemy: 'Шлях Алхіміка', demonic: 'Демонічний шлях' },
   zones: {
+    villageWoods: { nom: 'Ліс біля села', in: 'у лісі біля села' },
     azureFoothills: { nom: 'Околиці гори Лазурової Хмари', in: 'на околицях гори Лазурової Хмари' },
     thousandBeastForest: { nom: 'Ліс Тисячі Звірів', in: 'у Лісі Тисячі Звірів' },
   },
@@ -107,6 +109,13 @@ export const uk: Messages = {
       gender: 'm',
     },
     youngMaster: { nom: 'молодий майстер', gen: 'молодого майстра', acc: 'молодого майстра', ins: 'молодим майстром', gender: 'm' },
+    hermit: {
+      nom: 'старець-відлюдник',
+      gen: 'старця-відлюдника',
+      acc: 'старця-відлюдника',
+      ins: 'старцем-відлюдником',
+      gender: 'm',
+    },
     shadowWolfKing: {
       nom: 'Король вовків-тіней',
       gen: 'Короля вовків-тіней',
@@ -199,6 +208,8 @@ export const uk: Messages = {
       }
       case 'stats':
         return 'Загартування';
+      case 'knowledge':
+        return `Знання: ${c.m.knowledge[r.key]!.name}`;
     }
   },
   rewardDesc: (r, c) => {
@@ -217,6 +228,8 @@ export const uk: Messages = {
         return Object.entries(r.stats)
           .map(([k, v]) => `+${v} ${c.m.stats[k as keyof typeof c.m.stats]}`)
           .join(', ');
+      case 'knowledge':
+        return c.m.knowledge[r.key]!.desc;
     }
   },
   stats: { body: 'Тіло', qi: 'Ці', agi: 'Спритність', mind: 'Свідомість', luck: 'Удача' },
@@ -275,6 +288,7 @@ export const uk: Messages = {
       technique: 'Техніки',
       cultivation: 'Методи культивації',
       stats: 'Загартування',
+      knowledge: 'Знання',
     },
     moveUp: 'Вище',
     moveDown: 'Нижче',
@@ -284,7 +298,45 @@ export const uk: Messages = {
     talents: 'Таланти',
     noTalents: 'Ще жодного',
     resting: 'Подушка відпочиває',
+    nextDream: 'Наступний сон',
+    fate: 'Очки долі',
+    instinct: 'Інстинкт',
+    start: 'Місце старту',
+    blessing: 'Благословення долі',
+    blessingHint: '+5 Удачі на все життя',
+    cost: (n) => `${n} оч.`,
+    knowledge: 'Знання з минулих снів',
+    forkWaiting: (t) => `Сон чекає твого рішення: ${t}`,
+    forkInstinct: (name) => `Потім вирішить інстинкт: ${name}`,
+    waitForMe: 'Завжди чекати на мій вибір',
+    waitForMeHint: 'Розвилки не вирішуються самі',
   },
+  instincts: {
+    cautious: { name: 'Обережний', desc: 'Тікає вчасно, живе довго, росте повільно' },
+    bold: { name: 'Зухвалий', desc: 'Лізе в бій із сильнішими й росте на небезпеці' },
+    greedy: { name: 'Жадібний', desc: 'Заробляє більше каменів і не любить витрачатися' },
+    righteous: { name: 'Праведний', desc: 'Допомагає слабким, і секта цінує його більше' },
+  },
+  startPlaces: {
+    azureCloudSect: { name: 'Секта Лазурової Хмари', desc: 'Рідна секта', elder: 'Старійшина секти Лазурової Хмари' },
+    thousandPillValley: {
+      name: 'Долина Тисячі Пілюль',
+      desc: 'Пілюлі вдвічі дешевші, на старті три пілюлі, більше трав',
+      elder: 'Старійшина Долини Тисячі Пілюль',
+    },
+    ironFistClan: {
+      name: 'Клан Залізного Кулака',
+      desc: 'Духовні наручі на старті й дешевий арсенал',
+      elder: 'Старійшина Клану Залізного Кулака',
+    },
+  },
+  knowledge: {
+    oldZhangCave: { name: 'Печера Старого Чжана', desc: 'У кожному сні можна забрати з неї техніку' },
+    hiddenSpring: { name: 'Приховане джерело ці', desc: '+25% до культивації на Закладанні Основи' },
+    thousandPillValley: { name: 'Долина Тисячі Пілюль', desc: 'Нове місце старту: дешеві пілюлі' },
+    ironFistClan: { name: 'Клан Залізного Кулака', desc: 'Нове місце старту: власні наручі й дешевий арсенал' },
+  },
+  forks: ukForks,
   ageYears: { one: '{n} рік', few: '{n} роки', many: '{n} років', other: '{n} року' },
   events: {
     dreamStart: (e, c) =>
@@ -303,7 +355,9 @@ export const uk: Messages = {
         rare: `побачив твій ${root} духовний корінь і вперше за день усміхнувся`,
         heavenly: `побачив твій ${root} духовний корінь і впустив люльку`,
       }[e.root];
-      return `Тобі ${c.age(e.ageMonths)}. Старійшина секти Лазурової Хмари ${reaction}. Твій шлях — ${c.m.paths[e.path]}.`;
+      const elder = c.m.startPlaces[e.start ?? 'azureCloudSect']!.elder;
+      const instinct = e.instinct ? ` Інстинкт — ${c.m.instincts[e.instinct].name.toLowerCase()}.` : '';
+      return `Тобі ${c.age(e.ageMonths)}. ${elder} ${reaction}. Твій шлях — ${c.m.paths[e.path]}.${instinct}`;
     },
     fight: (e, c) => {
       const foe = c.enemy(e.enemy, e.name);
@@ -330,6 +384,8 @@ export const uk: Messages = {
           );
         case 'rescued':
           return `${age} ${cap(foe.nom)} ${c.eg(e.enemy, 'залишив', 'залишила')} тебе помирати в канаві, але ти якимось дивом ${c.g('вижив', 'вижила')}.`;
+        case 'sensed':
+          return `${age} Ти ${c.g('відчув', 'відчула')} тиск чужої ці — ${foe.nom} (${c.level(e.enemyLevel)}) — і вчасно ${c.g('сховався', 'сховалася')}.`;
       }
     },
     loot: (e, c) => {
@@ -406,6 +462,20 @@ export const uk: Messages = {
       e.success
         ? `Наяву небо над корчмою потемніло — ти ${c.g('прорвався', 'прорвалася')} до ${c.m.realms[realmKey(e.level)]!.gen}! Відтепер кожен сон починається звідси.`
         : `Наяву прорив до ${c.m.realms[realmKey(e.level)]!.gen} провалився. Меридіани палають, і Подушка мовчатиме, доки вони не загояться.`,
+    fork: (e, c) => c.m.forks[e.fork]!.question(e, c),
+    forkResult: (e, c) => {
+      const line = c.m.forks[e.fork]!.results[`${e.option}/${e.outcome}`]!(e, c);
+      return e.auto ? `${line} (інстинкт)` : line;
+    },
+    remembered: (e, c) => {
+      const age = `Тобі ${c.age(e.ageMonths)}.`;
+      if (e.knowledge === 'hiddenSpring') {
+        return `${age} Ти медитуєш біля джерела, яке пам'ятаєш з минулого сну. Ці тече швидше.`;
+      }
+      return e.technique
+        ? `${age} Ти ${c.g('згадав', 'згадала')} печеру Старого Чжана з минулого сну. Рукопис лежав на тому самому місці — техніка «${c.m.techniques[e.technique]}» тепер твоя.`
+        : `${age} Ти ${c.g('згадав', 'згадала')} печеру Старого Чжана. У старих печатях ще лишилося ${e.amount ?? 0} ці.`;
+    },
   },
   summary: (s, c) => {
     const cause =

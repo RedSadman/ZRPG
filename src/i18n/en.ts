@@ -2,6 +2,7 @@ import { CULTIVATION_TECHNIQUES } from '../data/techniques.ts';
 import { REALMS } from '../data/realms.ts';
 import { realmOf, stageOf } from '../engine/levels.ts';
 import type { Messages, Noun, PluralForms } from './types.ts';
+import { enForks } from './en-forks.ts';
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** "a spirit boar", or just the name for proper nouns. */
@@ -45,6 +46,7 @@ export const en: Messages = {
   roots: { trash: 'trash', common: 'common', rare: 'rare', heavenly: 'heavenly' },
   paths: { sword: 'the Way of the Sword', body: 'Body Tempering', alchemy: 'the Way of the Alchemist', demonic: 'the Demonic Path' },
   zones: {
+    villageWoods: { nom: 'Village woods', in: 'in the woods by the village' },
     azureFoothills: { nom: 'Azure Cloud Foothills', in: 'in the foothills of Azure Cloud Mountain' },
     thousandBeastForest: { nom: 'Forest of a Thousand Beasts', in: 'in the Forest of a Thousand Beasts' },
   },
@@ -58,6 +60,7 @@ export const en: Messages = {
     spiritSerpent: { nom: 'spirit serpent', article: 'a' },
     ironbackBear: { nom: 'ironback bear', article: 'an' },
     youngMaster: { nom: 'young master', article: 'a' },
+    hermit: { nom: 'hermit', article: 'a' },
     shadowWolfKing: { nom: 'the Shadow Wolf King', article: '' },
   },
   surnames: {
@@ -138,6 +141,8 @@ export const en: Messages = {
       }
       case 'stats':
         return 'Tempering';
+      case 'knowledge':
+        return `Knowledge: ${c.m.knowledge[r.key]!.name}`;
     }
   },
   rewardDesc: (r, c) => {
@@ -156,6 +161,8 @@ export const en: Messages = {
         return Object.entries(r.stats)
           .map(([k, v]) => `+${v} ${c.m.stats[k as keyof typeof c.m.stats]}`)
           .join(', ');
+      case 'knowledge':
+        return c.m.knowledge[r.key]!.desc;
     }
   },
   stats: { body: 'Body', qi: 'Qi', agi: 'Agility', mind: 'Mind', luck: 'Luck' },
@@ -213,6 +220,7 @@ export const en: Messages = {
       technique: 'Techniques',
       cultivation: 'Cultivation methods',
       stats: 'Tempering',
+      knowledge: 'Knowledge',
     },
     moveUp: 'Up',
     moveDown: 'Down',
@@ -222,7 +230,45 @@ export const en: Messages = {
     talents: 'Talents',
     noTalents: 'None yet',
     resting: 'The Pillow is resting',
+    nextDream: 'Next dream',
+    fate: 'Fate points',
+    instinct: 'Instinct',
+    start: 'Starting place',
+    blessing: 'Blessing of Fate',
+    blessingHint: '+5 Luck for the whole life',
+    cost: (n) => `${n} pts`,
+    knowledge: 'Knowledge from past dreams',
+    forkWaiting: (t) => `The dream awaits your decision: ${t}`,
+    forkInstinct: (name) => `Then the instinct decides: ${name}`,
+    waitForMe: 'Always wait for my choice',
+    waitForMeHint: 'Forks never decide themselves',
   },
+  instincts: {
+    cautious: { name: 'Cautious', desc: 'Runs in time, lives long, grows slowly' },
+    bold: { name: 'Bold', desc: 'Picks fights with stronger foes and grows on danger' },
+    greedy: { name: 'Greedy', desc: 'Earns more stones and hates to spend them' },
+    righteous: { name: 'Righteous', desc: 'Helps the weak, and the sect values it more' },
+  },
+  startPlaces: {
+    azureCloudSect: { name: 'Azure Cloud Sect', desc: 'Your home sect', elder: 'An elder of the Azure Cloud Sect' },
+    thousandPillValley: {
+      name: 'Valley of a Thousand Pills',
+      desc: 'Pills at half price, three pills to start, more herbs',
+      elder: 'An elder of the Valley of a Thousand Pills',
+    },
+    ironFistClan: {
+      name: 'Iron Fist Clan',
+      desc: 'Spirit-rank bracers to start and a cheap armory',
+      elder: 'An elder of the Iron Fist Clan',
+    },
+  },
+  knowledge: {
+    oldZhangCave: { name: "Old Zhang's Cave", desc: 'In every dream you can take a technique from it' },
+    hiddenSpring: { name: 'Hidden Qi Spring', desc: '+25% cultivation during Foundation Establishment' },
+    thousandPillValley: { name: 'Valley of a Thousand Pills', desc: 'New starting place: cheap pills' },
+    ironFistClan: { name: 'Iron Fist Clan', desc: 'New starting place: clan bracers and a cheap armory' },
+  },
+  forks: enForks,
   ageYears: { one: '{n}', other: '{n}' },
   events: {
     dreamStart: (e, c) =>
@@ -240,7 +286,9 @@ export const en: Messages = {
         rare: 'saw your rare spirit root and smiled for the first time that day',
         heavenly: 'saw your heavenly spirit root and dropped his pipe',
       }[e.root];
-      return `You are ${c.age(e.ageMonths)}. An elder of the Azure Cloud Sect ${reaction}. You follow ${c.m.paths[e.path]}.`;
+      const elder = c.m.startPlaces[e.start ?? 'azureCloudSect']!.elder;
+      const instinct = e.instinct ? ` Your instinct: ${c.m.instincts[e.instinct].name.toLowerCase()}.` : '';
+      return `You are ${c.age(e.ageMonths)}. ${elder} ${reaction}. You follow ${c.m.paths[e.path]}.${instinct}`;
     },
     fight: (e, c) => {
       const foe = c.enemy(e.enemy, e.name);
@@ -267,6 +315,8 @@ export const en: Messages = {
           );
         case 'rescued':
           return `${age} ${cap(the(foe))} left you to die in a ditch, but somehow you survived.`;
+        case 'sensed':
+          return `${age} You felt the pressure of a stranger's qi — ${a(foe)} (${c.level(e.enemyLevel)}) — and hid in time.`;
       }
     },
     loot: (e, c) => {
@@ -335,6 +385,18 @@ export const en: Messages = {
       e.success
         ? `Awake, the sky above the inn darkened — you broke through to ${realmName(c.m, e.level)}! Every dream now begins from here.`
         : `Awake, the breakthrough to ${realmName(c.m, e.level)} failed. Your meridians burn, and the Pillow will stay silent until they heal.`,
+    fork: (e, c) => c.m.forks[e.fork]!.question(e, c),
+    forkResult: (e, c) => {
+      const line = c.m.forks[e.fork]!.results[`${e.option}/${e.outcome}`]!(e, c);
+      return e.auto ? `${line} (instinct)` : line;
+    },
+    remembered: (e, c) => {
+      const age = `You are ${c.age(e.ageMonths)}.`;
+      if (e.knowledge === 'hiddenSpring') return `${age} You meditate by the spring you remember from a past dream. Qi flows faster.`;
+      return e.technique
+        ? `${age} You remembered Old Zhang's cave from a past dream. The manual lay right where you left it — “${c.m.techniques[e.technique]}” is yours.`
+        : `${age} You remembered Old Zhang's cave. Its old seals still held ${e.amount ?? 0} qi.`;
+    },
   },
   summary: (s, c) => {
     const cause =

@@ -1,5 +1,6 @@
 // Everything here must stay plain JSON: the save file is this state, and a future server will replay it.
 
+import type { Instinct } from '../data/instincts.ts';
 import type { PathKey } from '../data/paths.ts';
 import type { RootKey } from '../data/roots.ts';
 
@@ -49,6 +50,29 @@ export interface Hero {
   talents: Talent[];
   /** After a failed real breakthrough the Pillow stays silent this many beats. */
   injuryBeats: number;
+  /** Places and secrets remembered from past dreams; they exist in every later dream. */
+  knowledge: string[];
+  /** Fate points, earned by good lives and spent on the next dream's setup. */
+  fate: number;
+}
+
+/** What the player decides before falling asleep; kept between dreams. */
+export interface DreamSetup {
+  instinct: Instinct;
+  path: PathKey;
+  start: string;
+  blessing: boolean;
+}
+
+/** A fork in the road waiting for an answer. */
+export interface PendingFork {
+  key: string;
+  options: string[];
+  /** Beat after which the instinct answers (unless the player asked to always wait). */
+  deadline: number;
+  /** Spirit stones at stake, for forks that ask for money. */
+  cost: number;
+  enemyLevel: number;
 }
 
 /** What the hero may carry out of a finished dream. */
@@ -58,7 +82,8 @@ export type Reward =
   | { kind: 'cultivation'; key: string }
   | { kind: 'item'; item: Item }
   | { kind: 'talent'; talent: Talent }
-  | { kind: 'stats'; stats: Partial<Stats> };
+  | { kind: 'stats'; stats: Partial<Stats> }
+  | { kind: 'knowledge'; key: string };
 
 export type RewardKind = Reward['kind'];
 
@@ -116,13 +141,23 @@ export interface Life {
   talents: Talent[];
   /** Total qi progress of the real hero when this dream began; the qi reward pays out a share of what was gained since. */
   startProgress: number;
+  path: PathKey;
+  instinct: Instinct;
+  start: string;
+  /** Luck from the Blessing of Fate and from karma earned at forks. */
+  luckBonus: number;
+  fork: PendingFork | null;
+  /** Knowledge found in this dream; offered as a reward on waking. */
+  discoveries: string[];
+  /** Knowledge already put to use in this dream. */
+  remembered: string[];
 }
 
-export type FightNote = 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued';
+export type FightNote = 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed';
 
 export type GameEvent =
   | { kind: 'dreamStart'; dream: number }
-  | { kind: 'joinSect'; ageMonths: number; root: RootKey; path: PathKey }
+  | { kind: 'joinSect'; ageMonths: number; root: RootKey; path: PathKey; start?: string; instinct?: Instinct }
   | { kind: 'fight'; ageMonths: number; enemy: string; enemyLevel: number; note: FightNote; name?: string }
   | { kind: 'loot'; ageMonths: number; item: Item }
   | { kind: 'hunt'; ageMonths: number; zone: string; months: number; kills: number; herbs: number }
@@ -137,7 +172,21 @@ export type GameEvent =
   | { kind: 'away'; months: number; dreamsEnded: number }
   | { kind: 'reward'; dream: number; reward: Reward; auto: boolean }
   | { kind: 'realStageUp'; level: number }
-  | { kind: 'realBreakthrough'; level: number; success: boolean };
+  | { kind: 'realBreakthrough'; level: number; success: boolean }
+  | { kind: 'fork'; ageMonths: number; fork: string; cost: number }
+  | {
+      kind: 'forkResult';
+      ageMonths: number;
+      fork: string;
+      option: string;
+      outcome: string;
+      auto: boolean;
+      amount?: number;
+      item?: Item;
+      technique?: string;
+      knowledge?: string;
+    }
+  | { kind: 'remembered'; ageMonths: number; knowledge: string; technique?: string; amount?: number };
 
 export type EventKind = GameEvent['kind'];
 
@@ -174,6 +223,9 @@ export interface GameState {
   /** Beats accumulated towards the next charge. */
   chargeBeats: number;
   autopilot: { enabled: boolean; priority: RewardKind[] };
+  setup: DreamSetup;
+  /** Forks wait for the player forever instead of letting the instinct answer. */
+  waitForMe: boolean;
   dreamsEnded: number;
   journal: JournalEntry[];
   nextEntryId: number;

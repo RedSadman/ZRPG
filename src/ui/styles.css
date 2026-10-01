@@ -476,3 +476,56 @@ button.action small {
   color: var(--qi);
   font-weight: 600;
 }
+
+/* --- Milestone 4: setup, forks --- */
+
+.segmented.wrap {
+  flex-wrap: wrap;
+}
+
+.segmented.wrap button {
+  flex: 1 1 45%;
+}
+
+.segmented.wrap button + button {
+  border-left: 0;
+}
+
+.setup .label {
+  display: block;
+  margin-top: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 2px;
+}
+
+select {
+  font: inherit;
+  color: inherit;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.fork .question {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+}
+
+.offer.instinct-pick {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.entry-fork {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.entry-forkResult,
+.entry-remembered {
+  color: var(--ink);
+}

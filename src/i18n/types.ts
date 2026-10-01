@@ -1,6 +1,28 @@
+import type { Instinct } from '../data/instincts.ts';
 import type { PathKey } from '../data/paths.ts';
 import type { RootKey } from '../data/roots.ts';
-import type { DreamSummary, EventKind, GameEvent, Item, Reward, RewardKind, Slot, StatKey } from '../engine/types.ts';
+import type {
+  DreamSummary,
+  EventKind,
+  GameEvent,
+  Item,
+  PendingFork,
+  Reward,
+  RewardKind,
+  Slot,
+  StatKey,
+} from '../engine/types.ts';
+
+export type ForkEvent = Extract<GameEvent, { kind: 'fork' }>;
+export type ForkResultEvent = Extract<GameEvent, { kind: 'forkResult' }>;
+
+/** Everything said about one fork: the question, the buttons, and how each choice turned out. */
+export interface ForkTexts {
+  question: (e: ForkEvent, c: NarrationContext) => string;
+  options: Record<string, (fork: PendingFork, c: NarrationContext) => string>;
+  /** Keyed "option/outcome", e.g. "buy/fake". */
+  results: Record<string, (e: ForkResultEvent, c: NarrationContext) => string>;
+}
 
 export type Locale = 'uk' | 'en';
 export const LOCALES: Locale[] = ['uk', 'en'];
@@ -118,7 +140,23 @@ export interface Messages {
     talents: string;
     noTalents: string;
     resting: string;
+    nextDream: string;
+    fate: string;
+    instinct: string;
+    start: string;
+    blessing: string;
+    blessingHint: string;
+    cost: (points: number) => string;
+    knowledge: string;
+    forkWaiting: (time: string) => string;
+    forkInstinct: (instinct: string) => string;
+    waitForMe: string;
+    waitForMeHint: string;
   };
+  instincts: Record<Instinct, { name: string; desc: string }>;
+  startPlaces: Record<string, { name: string; desc: string; elder: string }>;
+  knowledge: Record<string, { name: string; desc: string }>;
+  forks: Record<string, ForkTexts>;
   ageYears: PluralForms;
   events: EventTemplates;
   /** One line about a finished dream for the Chronicle. */

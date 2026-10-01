@@ -25,8 +25,10 @@ describe('sim', () => {
     let s = newGame(21);
     for (let i = 0; i < 200 && s.phase === 'dreaming'; i++) {
       const before = s.nextEntryId;
+      const waiting = s.life.fork !== null;
       s = step(s);
-      expect(s.nextEntryId).toBeGreaterThan(before);
+      // A fork pauses the dream until it is answered.
+      if (!waiting) expect(s.nextEntryId).toBeGreaterThan(before);
     }
   });
 

@@ -2,15 +2,23 @@ import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { MAX_LEVEL, REALMS } from '../data/realms.ts';
 import { SLOTS } from '../data/items.ts';
+import { INSTINCT_KEYS } from '../data/instincts.ts';
+import { BLESSING_COST, START_PLACES } from '../data/knowledge.ts';
+import { PATH_KEYS, type PathKey } from '../data/paths.ts';
 import {
   attemptRealBreakthrough,
   catchUp,
+  chooseFork,
   chooseReward,
   movePriority,
   newGame,
   setAutopilot,
+  setSetup,
+  setWaitForMe,
+  setupCost,
   step,
 } from '../engine/sim.ts';
+import { instinctChoice } from '../engine/forks.ts';
 import { STAT_KEYS, effectiveStats, maxHp } from '../engine/hero.ts';
 import { qiToReach, realmOf } from '../engine/levels.ts';
 import {
@@ -114,6 +122,7 @@ export function App() {
         <aside class="side">
           <RealityPanel game={game} locale={locale} speed={speed} onBreakthrough={() => setGame(attemptRealBreakthrough)} />
           {game.phase === 'dreaming' && <DreamPanel game={game} locale={locale} />}
+          <SetupPanel game={game} locale={locale} update={setGame} />
 
           <section class="panel controls">
             <span class="label">{m.ui.speed}</span>
@@ -175,6 +184,21 @@ export function App() {
               </div>
             )}
 
+            <label class="toggle">
+              <input
+                type="checkbox"
+                checked={game.waitForMe}
+                onChange={(e) => {
+                  const wait = (e.currentTarget as HTMLInputElement).checked;
+                  setGame((s) => setWaitForMe(s, wait));
+                }}
+              />
+              <span>
+                {m.ui.waitForMe}
+                <small class="muted">{m.ui.waitForMeHint}</small>
+              </span>
+            </label>
+
             <button class="quiet" onClick={restart}>
               {m.ui.newGame}
             </button>
@@ -182,6 +206,10 @@ export function App() {
         </aside>
 
         <main class="main">
+          {game.phase === 'dreaming' && game.life.fork && (
+            <ForkCard game={game} locale={locale} speed={speed} onChoose={(option) => setGame((s) => chooseFork(s, option))} />
+          )}
+
           {game.phase === 'choosing' && game.offer && (
             <section class="panel choose" aria-live="polite">
               <h2>{m.ui.chooseTitle}</h2>
@@ -243,6 +271,140 @@ export function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+function ForkCard({
+  game,
+  locale,
+  speed,
+  onChoose,
+}: {
+  game: GameState;
+  locale: Locale;
+  speed: number;
+  onChoose: (option: string) => void;
+}) {
+  const m = messages(locale);
+  const ctx = narrationContext(game, locale);
+  const fork = game.life.fork!;
+  const texts = m.forks[fork.key]!;
+  const instinct = m.instincts[game.life.instinct].name;
+  const fallback = instinctChoice(game);
+  return (
+    <section class="panel choose fork" aria-live="polite">
+      <p class="question">{texts.question({ kind: 'fork', ageMonths: game.life.ageMonths, fork: fork.key, cost: fork.cost }, ctx)}</p>
+      <div class="offers">
+        {fork.options.map((option) => (
+          <button key={option} class={option === fallback ? 'offer instinct-pick' : 'offer'} onClick={() => onChoose(option)}>
+            <strong>{texts.options[option]!(fork, ctx)}</strong>
+          </button>
+        ))}
+      </div>
+      {!game.waitForMe && (
+        <p class="muted small">
+          {m.ui.forkWaiting(beatsToClock(Math.max(0, fork.deadline - game.beat), speed))} · {m.ui.forkInstinct(instinct)}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function SetupPanel({ game, locale, update }: { game: GameState; locale: Locale; update: (fn: (s: GameState) => GameState) => void }) {
+  const m = messages(locale);
+  const { hero, setup } = game;
+  const places = START_PLACES.filter((p) => !p.knowledge || hero.knowledge.includes(p.knowledge));
+  const cost = setupCost(game);
+  return (
+    <section class="panel setup">
+      <h2>{m.ui.nextDream}</h2>
+      <dl class="facts">
+        <dt>{m.ui.fate}</dt>
+        <dd class={cost > hero.fate ? 'warning' : ''}>
+          {hero.fate}
+          {cost > 0 && ` − ${cost}`}
+        </dd>
+      </dl>
+
+      <span class="label">{m.ui.instinct}</span>
+      <div class="segmented wrap">
+        {INSTINCT_KEYS.map((key) => (
+          <button
+            key={key}
+            title={m.instincts[key].desc}
+            aria-pressed={setup.instinct === key}
+            onClick={() => update((s) => setSetup(s, { instinct: key }))}
+          >
+            {m.instincts[key].name}
+          </button>
+        ))}
+      </div>
+      <p class="muted small">{m.instincts[setup.instinct].desc}</p>
+
+      <label class="field">
+        <span class="label">{m.ui.path}</span>
+        <select
+          value={setup.path}
+          onChange={(e) => {
+            const path = (e.currentTarget as HTMLSelectElement).value as PathKey;
+            update((s) => setSetup(s, { path }));
+          }}
+        >
+          {PATH_KEYS.map((key) => (
+            <option key={key} value={key}>
+              {m.paths[key]}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {places.length > 1 && (
+        <label class="field">
+          <span class="label">{m.ui.start}</span>
+          <select
+            value={setup.start}
+            onChange={(e) => {
+              const start = (e.currentTarget as HTMLSelectElement).value;
+              update((s) => setSetup(s, { start }));
+            }}
+          >
+            {places.map((p) => (
+              <option key={p.key} value={p.key}>
+                {m.startPlaces[p.key]!.name}
+                {p.cost > 0 ? ` (${m.ui.cost(p.cost)})` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <label class="toggle">
+        <input
+          type="checkbox"
+          checked={setup.blessing}
+          onChange={(e) => {
+            const blessing = (e.currentTarget as HTMLInputElement).checked;
+            update((s) => setSetup(s, { blessing }));
+          }}
+        />
+        <span>
+          {m.ui.blessing} ({m.ui.cost(BLESSING_COST)})<small class="muted">{m.ui.blessingHint}</small>
+        </span>
+      </label>
+
+      {hero.knowledge.length > 0 && (
+        <>
+          <h3>{m.ui.knowledge}</h3>
+          <ul class="plain">
+            {hero.knowledge.map((k) => (
+              <li key={k} title={m.knowledge[k]?.desc}>
+                {m.knowledge[k]?.name}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
   );
 }
 

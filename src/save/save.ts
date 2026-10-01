@@ -4,7 +4,7 @@ import { CHARGE_MAX, DEFAULT_PRIORITY } from '../engine/reality.ts';
 import type { GameState } from '../engine/types.ts';
 
 export const SAVE_KEY = 'zrpg.save';
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export interface SaveFile {
   version: number;
@@ -41,6 +41,26 @@ const migrations: Record<number, (old: SaveFile) => SaveFile> = {
       dreamsEnded: s.life.n - (awake ? 0 : 1),
     });
     return { ...old, version: 3, state: s as GameState };
+  },
+  // v3 → v4: instincts, dream setup, forks, knowledge and fate points.
+  3: (old) => {
+    const s = old.state as any;
+    Object.assign(s.hero, { knowledge: [], fate: 0 });
+    Object.assign(s.life, {
+      path: s.hero.path,
+      instinct: 'cautious',
+      start: 'azureCloudSect',
+      luckBonus: 0,
+      fork: null,
+      discoveries: [],
+      remembered: [],
+    });
+    if (!s.autopilot.priority.includes('knowledge')) s.autopilot.priority.unshift('knowledge');
+    Object.assign(s, {
+      setup: { instinct: 'cautious', path: s.hero.path, start: 'azureCloudSect', blessing: false },
+      waitForMe: false,
+    });
+    return { ...old, version: 4, state: s as GameState };
   },
 };
 

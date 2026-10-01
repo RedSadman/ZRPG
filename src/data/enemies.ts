@@ -70,6 +70,18 @@ export const ENEMIES: Record<string, EnemyDef> = {
     technique: { k: 0.8, cost: 10 },
     rival: true,
   },
+  /** The old man with the manual. Not as frail as he looks. */
+  hermit: {
+    kind: 'human',
+    hp: 1.3,
+    atk: 1.3,
+    agi: 1.2,
+    armor: 1.2,
+    trophy: 0,
+    stones: 30,
+    itemChance: 0.5,
+    technique: { k: 1.0, cost: 10 },
+  },
   shadowWolfKing: {
     kind: 'beast',
     hp: 2.2,

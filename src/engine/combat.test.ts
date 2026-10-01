@@ -30,7 +30,7 @@ describe('combat', () => {
 
   it('pills are drunk before running away', () => {
     const rng = createRng(3);
-    const hero = enemyCombatant(ENEMIES.greyWolf!, 2);
+    const hero = { ...enemyCombatant(ENEMIES.greyWolf!, 2), fleeAt: 0.35 };
     const r = fight(hero, enemyCombatant(ENEMIES.ironbackBear!, 4), 3, 5, rng);
     if (r.outcome !== 'won') expect(r.pillsUsed).toBeGreaterThan(0);
   });

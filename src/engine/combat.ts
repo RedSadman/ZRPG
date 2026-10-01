@@ -1,5 +1,6 @@
 import { COMBAT_TECHNIQUES } from '../data/techniques.ts';
 import type { EnemyDef } from '../data/enemies.ts';
+import { INSTINCTS } from '../data/instincts.ts';
 import { HEALING_PILL } from '../data/pills.ts';
 import { DEATH_MEMORY, TALENT_EFFECTS } from '../data/talents.ts';
 import { realmOf } from './levels.ts';
@@ -30,6 +31,8 @@ export interface Combatant {
   damageMult: number;
   /** Added to the chance of a successful retreat. */
   fleeBonus: number;
+  /** Below this share of HP: drink a pill, or run. */
+  fleeAt: number;
 }
 
 export type FightOutcome = 'won' | 'fled' | 'rescued' | 'lost';
@@ -45,11 +48,10 @@ export interface FightResult {
 }
 
 const MAX_ROUNDS = 40;
-/** Below this share of HP the hero drinks a pill or, without one, tries to run. */
-const LOW_HP = 0.35;
 
 export function heroCombatant(life: Life, enemyKey?: string): Combatant {
   const stats = effectiveStats(life);
+  const instinct = INSTINCTS[life.instinct];
   const hp = maxHp(life);
   return {
     level: life.level,
@@ -68,8 +70,9 @@ export function heroCombatant(life: Life, enemyKey?: string): Combatant {
       return { key: t.key, k: def.k * (1 + 0.05 * Math.min(9, Math.floor(t.uses / 10))), cost: def.cost, stat: def.stat };
     }),
     damageMult:
-      enemyKey && hasTalent(life.talents, DEATH_MEMORY, enemyKey) ? TALENT_EFFECTS.deathMemoryDamage : 1,
-    fleeBonus: hasTalent(life.talents, 'quickStep') ? TALENT_EFFECTS.quickStepFlee : 0,
+      (enemyKey && hasTalent(life.talents, DEATH_MEMORY, enemyKey) ? TALENT_EFFECTS.deathMemoryDamage : 1) * instinct.damage,
+    fleeBonus: (hasTalent(life.talents, 'quickStep') ? TALENT_EFFECTS.quickStepFlee : 0) + instinct.fleeBonus,
+    fleeAt: instinct.fleeAt,
   };
 }
 
@@ -92,6 +95,7 @@ export function enemyCombatant(def: EnemyDef, level: number): Combatant {
     techniques: def.technique ? [{ key: 'enemy', k: def.technique.k, cost: def.technique.cost, stat: 'qi' }] : [],
     damageMult: 1,
     fleeBonus: 0,
+    fleeAt: 0,
   };
 }
 
@@ -128,7 +132,7 @@ export function fight(hero: Combatant, foe: Combatant, pills: number, luckForRes
       return result('lost', 0);
     }
 
-    if (me.hp < me.maxHp * LOW_HP) {
+    if (me.hp < me.maxHp * me.fleeAt) {
       if (pills - pillsUsed > 0) {
         pillsUsed++;
         me.hp = Math.min(me.maxHp, me.hp + me.maxHp * HEALING_PILL.heal);
