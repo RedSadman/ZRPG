@@ -43,18 +43,21 @@ export function makeItem(rng: Rng, level: number, rank: number, path: PathKey, s
   return item;
 }
 
-export function starterItem(slot: Slot, base: string): Item {
+/** Plain Mortal-rank gear of a given level, no affixes: what a cultivator of that level owns anyway. */
+export function starterItem(slot: Slot, base: string, level = 0): Item {
   const spec = SLOT_STATS[slot];
-  return {
+  const item: Item = {
     slot,
     base,
     affixes: [],
     rank: 0,
-    level: 0,
-    weapon: spec.weapon?.[0] ?? 0,
-    armor: spec.armor?.[0] ?? 0,
+    level,
+    weapon: spec.weapon ? round1(spec.weapon[0] + spec.weapon[1] * level) : 0,
+    armor: spec.armor ? round1(spec.armor[0] + spec.armor[1] * level) : 0,
     bonus: {},
   };
+  if (spec.bonus && level > 0) item.bonus[spec.bonus] = round1(1 + 0.25 * level);
+  return item;
 }
 
 /** One number to compare items by, weighted by what the hero's path values. */

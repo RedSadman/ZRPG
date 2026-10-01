@@ -1,10 +1,17 @@
 // Balance simulator: plays many dreams on autopilot and prints how they went.
-// Usage: node tools/sim.ts [dreams=300] [seed=1]
+// Usage: node tools/sim.ts [dreams=300] [seed=1]        first dreams of fresh heroes
+//        node tools/sim.ts loop [players=40] [dreams=20] progression across dreams with rewards
 
 import { MAX_LEVEL } from '../src/data/realms.ts';
 import { realmOf, stageOf } from '../src/engine/levels.ts';
-import { advanceSteps, newGame } from '../src/engine/sim.ts';
+import { advanceSteps, attemptRealBreakthrough, chooseReward, newGame } from '../src/engine/sim.ts';
+import { autoPick, canAttemptRealBreakthrough } from '../src/engine/reality.ts';
 import type { DreamSummary, GameState } from '../src/engine/types.ts';
+
+if (process.argv[2] === 'loop') {
+  loop(Number(process.argv[3] ?? 40), Number(process.argv[4] ?? 20));
+  process.exit(0);
+}
 
 const dreams = Number(process.argv[2] ?? 300);
 const seed = Number(process.argv[3] ?? 1);
@@ -67,4 +74,36 @@ console.log('\nBy path (avg level / avg age):');
 for (const path of ['sword', 'body', 'alchemy', 'demonic']) {
   const xs = summaries.filter((s) => s.path === path);
   if (xs.length) console.log(`  ${path.padEnd(9)} n=${String(xs.length).padEnd(4)} L ${avg(xs.map((s) => s.level)).toFixed(1).padStart(5)}  age ${avg(xs.map((s) => years(s.ageMonths))).toFixed(1)}`);
+}
+
+/** Each player dreams `count` times, taking rewards by the default priority; charges are not the bottleneck here. */
+function loop(players: number, count: number): void {
+  const rows = Array.from({ length: count }, () => ({ level: 0, realLevel: 0, age: 0, score: 0, beats: 0, oldAge: 0 }));
+  for (let p = 0; p < players; p++) {
+    let s: GameState = newGame(7_000_003 + p);
+    for (let d = 0; d < count; d++) {
+      const startBeat = s.beat;
+      while (s.phase !== 'choosing') {
+        // Play like someone who presses the breakthrough button as soon as it lights up.
+        if (canAttemptRealBreakthrough(s.hero)) s = attemptRealBreakthrough(s);
+        s = advanceSteps({ ...s, charges: 99 }, 1);
+      }
+      const sum = s.chronicle.at(-1)!;
+      const row = rows[d]!;
+      row.level += sum.level;
+      row.age += sum.ageMonths / 12;
+      row.score += sum.score;
+      row.beats += s.beat - startBeat;
+      if (sum.death.cause === 'oldAge') row.oldAge += 1;
+      s = chooseReward(s, autoPick(s.offer!, s.autopilot.priority));
+      row.realLevel += s.hero.level;
+    }
+  }
+  console.log(`Players: ${players}, dreams each: ${count}`);
+  console.log('dream  dream-level  real-level     age  score  beats  old-age');
+  rows.forEach((r, i) => {
+    const f = (x: number, d = 1) => (x / players).toFixed(d).padStart(6);
+    const oldAge = `${((100 * r.oldAge) / players).toFixed(0)}%`.padStart(7);
+    console.log(`${String(i + 1).padStart(5)}  ${f(r.level)}       ${f(r.realLevel)}     ${f(r.age, 0)}  ${f(r.score, 0)}  ${f(r.beats, 0)}  ${oldAge}`);
+  });
 }

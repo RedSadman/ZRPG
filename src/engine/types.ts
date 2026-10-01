@@ -27,6 +27,12 @@ export interface LearnedTechnique {
   uses: number;
 }
 
+/** A permanent trait carried from dream to dream. `enemy` is set for "memory of death" talents. */
+export interface Talent {
+  key: string;
+  enemy?: string;
+}
+
 /** The real hero, who sleeps on the Jade Pillow. Every dream starts from here. */
 export interface Hero {
   nameKey: string;
@@ -34,7 +40,30 @@ export interface Hero {
   root: RootKey;
   path: PathKey;
   stats: Stats;
+  level: number;
+  qi: number;
+  techniques: LearnedTechnique[];
+  cultivation: string;
+  /** Items brought back from dreams; each dream starts with them on. */
+  equipment: Partial<Record<Slot, Item>>;
+  talents: Talent[];
+  /** After a failed real breakthrough the Pillow stays silent this many beats. */
+  injuryBeats: number;
 }
+
+/** What the hero may carry out of a finished dream. */
+export type Reward =
+  | { kind: 'qi'; amount: number }
+  | { kind: 'technique'; key: string; uses: number }
+  | { kind: 'cultivation'; key: string }
+  | { kind: 'item'; item: Item }
+  | { kind: 'talent'; talent: Talent }
+  | { kind: 'stats'; stats: Partial<Stats> };
+
+export type RewardKind = Reward['kind'];
+
+/** dreaming → (death) → choosing → (reward taken) → resting → (charge spent) → dreaming. */
+export type Phase = 'dreaming' | 'choosing' | 'resting';
 
 /** `retired`: hit the current cultivation ceiling and lives out the dream as a sect elder. */
 export type Activity = 'sect' | 'travel' | 'hunt' | 'returning' | 'meditate' | 'retired';
@@ -84,6 +113,9 @@ export interface Life {
   totals: { fights: number; wins: number; flees: number; kills: number };
   highlights: Array<{ priority: number; event: GameEvent }>;
   death: Death | null;
+  talents: Talent[];
+  /** Total qi progress of the real hero when this dream began; the qi reward pays out a share of what was gained since. */
+  startProgress: number;
 }
 
 export type FightNote = 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued';
@@ -102,7 +134,10 @@ export type GameEvent =
   | { kind: 'wall'; ageMonths: number; level: number }
   | { kind: 'death'; ageMonths: number; death: Death }
   | { kind: 'wake'; dream: number; score: number }
-  | { kind: 'away'; months: number; dreamsEnded: number };
+  | { kind: 'away'; months: number; dreamsEnded: number }
+  | { kind: 'reward'; dream: number; reward: Reward; auto: boolean }
+  | { kind: 'realStageUp'; level: number }
+  | { kind: 'realBreakthrough'; level: number; success: boolean };
 
 export type EventKind = GameEvent['kind'];
 
@@ -126,11 +161,20 @@ export interface DreamSummary {
 export interface GameState {
   /** One tick = one dreamed month. */
   tick: number;
+  /** One beat = one step of real time (about 3 seconds at ×1). Charges and real meditation count beats. */
+  beat: number;
   rngState: number;
   hero: Hero;
   life: Life;
-  /** Set once the current life has been summarised; the next tick starts a new dream. */
-  awake: boolean;
+  phase: Phase;
+  /** The three rewards on the table while `phase` is "choosing". */
+  offer: Reward[] | null;
+  /** Dreams the Pillow can give before it needs rest. */
+  charges: number;
+  /** Beats accumulated towards the next charge. */
+  chargeBeats: number;
+  autopilot: { enabled: boolean; priority: RewardKind[] };
+  dreamsEnded: number;
   journal: JournalEntry[];
   nextEntryId: number;
   chronicle: DreamSummary[];

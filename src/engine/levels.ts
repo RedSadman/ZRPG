@@ -24,6 +24,13 @@ export function baseQiPerMonth(level: number): number {
   return 4 * level;
 }
 
+/** All qi ever gathered to stand at `level` with `qi` towards the next one; lets two points on the path be compared. */
+export function totalProgress(level: number, qi: number): number {
+  let sum = qi;
+  for (let l = 1; l <= level; l++) sum += qiToReach(l);
+  return sum;
+}
+
 export function lifespanMonths(level: number): number {
   return REALMS[realmOf(level)]!.lifespanYears * 12;
 }

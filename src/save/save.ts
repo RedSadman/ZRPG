@@ -1,7 +1,10 @@
+import { PATHS } from '../data/paths.ts';
+import { CULTIVATION_TECHNIQUES } from '../data/techniques.ts';
+import { CHARGE_MAX, DEFAULT_PRIORITY } from '../engine/reality.ts';
 import type { GameState } from '../engine/types.ts';
 
 export const SAVE_KEY = 'zrpg.save';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface SaveFile {
   version: number;
@@ -12,7 +15,34 @@ export interface SaveFile {
 }
 
 /** Upgrades a save from version `n` to `n + 1`. Add one entry per schema change. */
-const migrations: Record<number, (old: SaveFile) => SaveFile> = {};
+const migrations: Record<number, (old: SaveFile) => SaveFile> = {
+  // v2 → v3: the real hero, rewards, charges and the autopilot arrive. Old saves get a hero with no progress yet.
+  2: (old) => {
+    const s = old.state as any;
+    const awake: boolean = s.awake;
+    delete s.awake;
+    Object.assign(s.hero, {
+      level: 0,
+      qi: 0,
+      techniques: [{ key: PATHS[s.hero.path as keyof typeof PATHS].technique, uses: 0 }],
+      cultivation: CULTIVATION_TECHNIQUES[0]!.key,
+      equipment: {},
+      talents: [],
+      injuryBeats: 0,
+    });
+    Object.assign(s.life, { talents: [], startProgress: 0 });
+    Object.assign(s, {
+      beat: 0,
+      phase: awake ? 'resting' : 'dreaming',
+      offer: null,
+      charges: CHARGE_MAX,
+      chargeBeats: 0,
+      autopilot: { enabled: false, priority: [...DEFAULT_PRIORITY] },
+      dreamsEnded: s.life.n - (awake ? 0 : 1),
+    });
+    return { ...old, version: 3, state: s as GameState };
+  },
+};
 
 export function serialize(state: GameState, lastTickAt: number, now: number): string {
   const file: SaveFile = { version: SAVE_VERSION, savedAt: now, lastTickAt, state };

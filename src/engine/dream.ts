@@ -3,12 +3,12 @@ import { RIVAL_SURNAMES } from '../data/rivals.ts';
 import { PATHS } from '../data/paths.ts';
 import { BREAKTHROUGH_PILLS, HEALING_PILL } from '../data/pills.ts';
 import { MAX_LEVEL, STAGES_PER_REALM } from '../data/realms.ts';
-import { rootDef } from '../data/roots.ts';
+import { TALENT_EFFECTS } from '../data/talents.ts';
 import { COMBAT_TECHNIQUES, CULTIVATION_TECHNIQUES, LIBRARY, MAX_COMBAT_TECHNIQUES } from '../data/techniques.ts';
 import { zoneFor, type ZoneDef } from '../data/zones.ts';
 import { enemyCombatant, fight, heroCombatant } from './combat.ts';
-import { bagCapacity, bagCount, effectiveStats, growStats, maxHp } from './hero.ts';
-import { baseQiPerMonth, isRealmGate, lifespanMonths, qiToReach, realmOf, stageOf } from './levels.ts';
+import { bagCapacity, bagCount, cultivationRate, effectiveStats, growStats, hasTalent, maxHp } from './hero.ts';
+import { isRealmGate, lifespanMonths, qiToReach, realmOf, stageOf, totalProgress } from './levels.ts';
 import { itemPower, makeItem, rollRank, sellValue, starterItem, takeItem } from './loot.ts';
 import { between, chance, nextInt, pick, pickWeighted, type Rng } from './rng.ts';
 import type { Activity, DeathCause, GameEvent, GameState, Hero, Life, Slot } from './types.ts';
@@ -39,22 +39,22 @@ const DANGER_CHANCE = 0.01;
 /** Slots the sect armory keeps stocked with plain gear of the hero's level. */
 const ARMORY_SLOTS: Slot[] = ['weapon', 'robe', 'bracers', 'boots'];
 
+/** A new dream starts from everything the real hero has: level, qi, stats, techniques, items, talents. */
 export function newLife(hero: Hero, n: number): Life {
-  const path = PATHS[hero.path];
   const life: Life = {
     n,
     ageMonths: START_AGE_MONTHS,
-    level: 0,
-    qi: 0,
+    level: hero.level,
+    qi: hero.qi,
     stats: { ...hero.stats },
     hp: 0,
-    equipment: { weapon: starterItem('weapon', path.weapons[0]!), robe: starterItem('robe', 'robe') },
+    equipment: startingGear(hero),
     bag: { trophyValue: 0, trophies: 0, items: [] },
     stones: 0,
     contribution: 0,
     pills: { healing: 1, breakthrough: null },
-    techniques: [{ key: path.technique, uses: 0 }],
-    cultivation: CULTIVATION_TECHNIQUES[0]!.key,
+    techniques: hero.techniques.map((t) => ({ ...t })),
+    cultivation: hero.cultivation,
     activity: 'sect',
     monthsInActivity: 0,
     plan: 'hunt',
@@ -66,9 +66,34 @@ export function newLife(hero: Hero, n: number): Life {
     totals: { fights: 0, wins: 0, flees: 0, kills: 0 },
     highlights: [],
     death: null,
+    talents: hero.talents.map((t) => ({ ...t })),
+    startProgress: totalProgress(hero.level, hero.qi),
   };
   life.hp = maxHp(life);
   return life;
+}
+
+/**
+ * A dream that starts at Foundation Establishment starts with a Foundation cultivator's plain gear, not a wooden
+ * sword. Items brought back from earlier dreams replace it when they are better.
+ */
+function startingGear(hero: Hero): Life['equipment'] {
+  const base: Record<Slot, string> = {
+    weapon: PATHS[hero.path].weapons[0]!,
+    robe: 'robe',
+    bracers: 'bracers',
+    boots: 'boots',
+    pendant: 'pendant',
+    ring: 'ring',
+  };
+  const slots: Slot[] = hero.level === 0 ? ['weapon', 'robe'] : ARMORY_SLOTS;
+  const gear: Life['equipment'] = {};
+  for (const slot of slots) gear[slot] = starterItem(slot, base[slot], hero.level);
+  for (const item of Object.values(hero.equipment)) {
+    const plain = gear[item.slot];
+    if (!plain || itemPower(item, hero.path) > itemPower(plain, hero.path)) gear[item.slot] = structuredClone(item);
+  }
+  return gear;
 }
 
 /** Lives one month of the current dream. Sets `life.death` when the dream ends. */
@@ -271,7 +296,7 @@ function encounter(s: GameState, rng: Rng, emit: Emit, enemyKey: string, level: 
   const { hero, life } = s;
   const def = ENEMIES[enemyKey]!;
   const name = def.rival ? pick(rng, RIVAL_SURNAMES) : undefined;
-  const me = heroCombatant(life);
+  const me = heroCombatant(life, enemyKey);
   const foe = enemyCombatant(def, level);
   const r = fight(me, foe, life.pills.healing, effectiveStats(life).luck, rng);
 
@@ -314,11 +339,12 @@ function encounter(s: GameState, rng: Rng, emit: Emit, enemyKey: string, level: 
   } else if (r.closeCall) note('closeCall', 4);
   else if (level >= life.level + 3) note('stronger', 3);
 
+  const value = hasTalent(life.talents, 'goldenTouch') ? TALENT_EFFECTS.goldenTouchValue : 1;
   if (def.trophy > 0 && bagCount(life) < bagCapacity(life)) {
-    life.bag.trophyValue += def.trophy * (1 + 0.15 * level);
+    life.bag.trophyValue += def.trophy * (1 + 0.15 * level) * value;
     life.bag.trophies += 1;
   }
-  if (def.stones > 0) life.stones += Math.round(def.stones * (1 + 0.2 * level) * between(rng, 0.5, 1.5));
+  if (def.stones > 0) life.stones += Math.round(def.stones * (1 + 0.2 * level) * between(rng, 0.5, 1.5) * value);
 
   if (chance(rng, def.itemChance)) {
     const rank = rollRank(rng, effectiveStats(life).luck, def.boss ? 1 : 0);
@@ -331,9 +357,8 @@ function encounter(s: GameState, rng: Rng, emit: Emit, enemyKey: string, level: 
 // --- Cultivation ------------------------------------------------------------
 
 export function qiPerMonth(hero: Hero, life: Life): number {
-  const cult = CULTIVATION_TECHNIQUES.find((t) => t.key === life.cultivation)!;
   const injury = life.injuryMonths > 0 ? 0.5 : 1;
-  return baseQiPerMonth(life.level + 1) * rootDef(hero.root).qiMult * cult.qiMult * PATHS[hero.path].qiMult * injury;
+  return cultivationRate(hero.root, hero.path, life.level, life.cultivation, life.talents) * injury;
 }
 
 function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
@@ -361,7 +386,7 @@ function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
   else {
     life.level = next;
     life.qi = 0;
-    growStats(hero, life, 2, rng);
+    growStats(hero.path, life.stats, 2, rng);
     emit({ kind: 'stageUp', ageMonths: life.ageMonths, level: next, months: life.monthsInActivity }, 3);
   }
   if (life.death) return;
@@ -374,13 +399,14 @@ function attemptBreakthrough(s: GameState, rng: Rng, emit: Emit): void {
   const next = life.level + 1;
   const pill = BREAKTHROUGH_PILLS[next];
   const usedPill = pill !== undefined && life.pills.breakthrough === pill.key;
-  const p = Math.min(0.95, 0.5 + 0.01 * effectiveStats(life).mind + (usedPill ? pill.bonus : 0));
+  const heart = hasTalent(life.talents, 'steadyHeart') ? TALENT_EFFECTS.steadyHeartBreakthrough : 0;
+  const p = Math.min(0.95, 0.5 + 0.01 * effectiveStats(life).mind + (usedPill ? pill.bonus : 0) + heart);
   if (usedPill) life.pills.breakthrough = null;
 
   if (chance(rng, p)) {
     life.level = next;
     life.qi = 0;
-    growStats(hero, life, 4, rng);
+    growStats(hero.path, life.stats, 4, rng);
     life.hp = maxHp(life);
     emit({ kind: 'realmUp', ageMonths: life.ageMonths, level: next, pill: usedPill }, 9);
     return;

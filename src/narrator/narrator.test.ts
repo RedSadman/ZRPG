@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advanceSteps, newGame } from '../engine/sim.ts';
+import { advanceSteps, newGame, setAutopilot } from '../engine/sim.ts';
 import type { GameEvent, GameState } from '../engine/types.ts';
 import { LOCALES, plural } from '../i18n/index.ts';
 import { uk } from '../i18n/uk.ts';
@@ -61,7 +61,7 @@ describe('narrator', () => {
   });
 
   it('narrates every event of a long run in both languages without gaps', () => {
-    const s = advanceSteps(newGame(2024), 4000);
+    const s = advanceSteps({ ...setAutopilot(newGame(2024), true), charges: 1000 }, 4000);
     const kinds = new Set(s.journal.map((e) => e.event.kind));
     expect(kinds.size).toBeGreaterThan(6);
     for (const locale of LOCALES) {

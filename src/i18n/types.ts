@@ -1,6 +1,6 @@
 import type { PathKey } from '../data/paths.ts';
 import type { RootKey } from '../data/roots.ts';
-import type { DreamSummary, EventKind, GameEvent, Item, Slot, StatKey } from '../engine/types.ts';
+import type { DreamSummary, EventKind, GameEvent, Item, Reward, RewardKind, Slot, StatKey } from '../engine/types.ts';
 
 export type Locale = 'uk' | 'en';
 export const LOCALES: Locale[] = ['uk', 'en'];
@@ -67,6 +67,11 @@ export interface Messages {
   /** "духовного рангу" / "Spirit-rank". */
   rankOf: string[];
   techniques: Record<string, string>;
+  talents: Record<string, { name: string; desc: string }>;
+  /** Short name of a reward for buttons and the journal. */
+  rewardTitle: (r: Reward, c: NarrationContext) => string;
+  /** One line on what the reward does. */
+  rewardDesc: (r: Reward, c: NarrationContext) => string;
   stats: Record<StatKey, string>;
   slots: Record<Slot, string>;
   /** Builds an item's display name in the requested form. */
@@ -96,6 +101,23 @@ export interface Messages {
     language: string;
     newGame: string;
     newGameConfirm: string;
+    reality: string;
+    inDream: string;
+    charges: string;
+    nextCharge: (time: string) => string;
+    chooseTitle: string;
+    autopilot: string;
+    autopilotHint: string;
+    priority: string;
+    rewardKinds: Record<RewardKind, string>;
+    moveUp: string;
+    moveDown: string;
+    breakthrough: (realmGen: string) => string;
+    breakthroughChance: (percent: number) => string;
+    injured: (time: string) => string;
+    talents: string;
+    noTalents: string;
+    resting: string;
   };
   ageYears: PluralForms;
   events: EventTemplates;

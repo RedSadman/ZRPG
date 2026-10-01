@@ -1,12 +1,26 @@
 import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { MAX_LEVEL } from '../data/realms.ts';
+import { MAX_LEVEL, REALMS } from '../data/realms.ts';
 import { SLOTS } from '../data/items.ts';
-import { catchUp, newGame, step } from '../engine/sim.ts';
+import {
+  attemptRealBreakthrough,
+  catchUp,
+  chooseReward,
+  movePriority,
+  newGame,
+  setAutopilot,
+  step,
+} from '../engine/sim.ts';
 import { STAT_KEYS, effectiveStats, maxHp } from '../engine/hero.ts';
-import { qiToReach } from '../engine/levels.ts';
+import { qiToReach, realmOf } from '../engine/levels.ts';
+import {
+  BEATS_PER_CHARGE,
+  CHARGE_MAX,
+  canAttemptRealBreakthrough,
+  realBreakthroughChance,
+} from '../engine/reality.ts';
 import type { GameState } from '../engine/types.ts';
-import { startTicker, ticksSince } from '../clock/clock.ts';
+import { TICK_MS, startTicker, ticksSince } from '../clock/clock.ts';
 import { clearSave, loadSave, writeSave } from '../save/save.ts';
 import { LOCALES, loadLocale, messages, saveLocale, type Locale } from '../i18n/index.ts';
 import { levelLabel, narrate, narrateEntry, narrateSummary, narrationContext } from '../narrator/narrator.ts';
@@ -24,6 +38,12 @@ function boot(): { state: GameState; lastTickAt: number } {
   const save = loadSave(localStorage);
   if (!save) return { state: newGame(randomSeed()), lastTickAt: now };
   return { state: catchUp(save.state, ticksSince(save.lastTickAt, now)), lastTickAt: now };
+}
+
+/** "4:05" for a number of beats at the current speed. */
+function beatsToClock(beats: number, speed: number): string {
+  const seconds = Math.ceil((beats * TICK_MS) / 1000 / Math.max(1, speed));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 export function App() {
@@ -92,7 +112,8 @@ export function App() {
 
       <div class="layout">
         <aside class="side">
-          <HeroPanel game={game} locale={locale} />
+          <RealityPanel game={game} locale={locale} speed={speed} onBreakthrough={() => setGame(attemptRealBreakthrough)} />
+          {game.phase === 'dreaming' && <DreamPanel game={game} locale={locale} />}
 
           <section class="panel controls">
             <span class="label">{m.ui.speed}</span>
@@ -114,6 +135,46 @@ export function App() {
                 </button>
               ))}
             </div>
+
+            <label class="toggle">
+              <input
+                type="checkbox"
+                checked={game.autopilot.enabled}
+                onChange={(e) => {
+                  const enabled = (e.currentTarget as HTMLInputElement).checked;
+                  setGame((s) => setAutopilot(s, enabled));
+                }}
+              />
+              <span>
+                {m.ui.autopilot}
+                <small class="muted">{m.ui.autopilotHint}</small>
+              </span>
+            </label>
+            {game.autopilot.enabled && (
+              <div class="priority">
+                <span class="label">{m.ui.priority}</span>
+                <ol>
+                  {game.autopilot.priority.map((kind, i, all) => (
+                    <li key={kind}>
+                      <span>{m.ui.rewardKinds[kind]}</span>
+                      <span class="arrows">
+                        <button aria-label={m.ui.moveUp} disabled={i === 0} onClick={() => setGame((s) => movePriority(s, kind, -1))}>
+                          ↑
+                        </button>
+                        <button
+                          aria-label={m.ui.moveDown}
+                          disabled={i === all.length - 1}
+                          onClick={() => setGame((s) => movePriority(s, kind, 1))}
+                        >
+                          ↓
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
             <button class="quiet" onClick={restart}>
               {m.ui.newGame}
             </button>
@@ -121,6 +182,23 @@ export function App() {
         </aside>
 
         <main class="main">
+          {game.phase === 'choosing' && game.offer && (
+            <section class="panel choose" aria-live="polite">
+              <h2>{m.ui.chooseTitle}</h2>
+              <div class="offers">
+                {game.offer.map((reward, i) => {
+                  const ctx = narrationContext(game, locale);
+                  return (
+                    <button key={i} class={`offer offer-${reward.kind}`} onClick={() => setGame((s) => chooseReward(s, i))}>
+                      <strong>{m.rewardTitle(reward, ctx)}</strong>
+                      <span>{m.rewardDesc(reward, ctx)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {lastDream && (
             <section class="panel last-dream">
               <h2>{m.ui.lastDream}</h2>
@@ -168,34 +246,96 @@ export function App() {
   );
 }
 
-function HeroPanel({ game, locale }: { game: GameState; locale: Locale }) {
+function RealityPanel({
+  game,
+  locale,
+  speed,
+  onBreakthrough,
+}: {
+  game: GameState;
+  locale: Locale;
+  speed: number;
+  onBreakthrough: () => void;
+}) {
   const m = messages(locale);
   const ctx = narrationContext(game, locale);
-  const { hero, life } = game;
-  const stats = effectiveStats(life);
-  const hpMax = maxHp(life);
-  const atCeiling = life.level >= MAX_LEVEL;
-  const qiNeed = qiToReach(life.level + 1);
-  const status = game.awake ? m.ui.awake : m.ui.activity[life.activity];
+  const { hero } = game;
+  const atCeiling = hero.level >= MAX_LEVEL;
+  const nextRealm = m.realms[REALMS[realmOf(hero.level + 1)]!.key]!.gen;
 
   return (
-    <section class="panel hero">
+    <section class="panel reality">
       <h2>{ctx.heroName}</h2>
       <p class="muted">
-        {m.ui.dream(life.n)} · {status} · {ctx.age(life.ageMonths)}
+        {m.ui.reality} · {levelLabel(m, hero.level)}
       </p>
-
       <dl class="facts">
-        <dt>{m.ui.realm}</dt>
-        <dd>{levelLabel(m, life.level)}</dd>
         <dt>{m.ui.root}</dt>
         <dd>{m.roots[hero.root]}</dd>
         <dt>{m.ui.path}</dt>
         <dd>{m.paths[hero.path]}</dd>
       </dl>
 
+      {!atCeiling && <Meter label={m.ui.qi} value={hero.qi} max={qiToReach(hero.level + 1)} kind="qi" />}
+      {canAttemptRealBreakthrough(hero) && (
+        <button class="action" onClick={onBreakthrough}>
+          {m.ui.breakthrough(nextRealm)}
+          <small>{m.ui.breakthroughChance(Math.round(realBreakthroughChance(hero) * 100))}</small>
+        </button>
+      )}
+      {hero.injuryBeats > 0 && <p class="warning">{m.ui.injured(beatsToClock(hero.injuryBeats, speed))}</p>}
+
+      <div class="charges">
+        <span class="label">{m.ui.charges}</span>
+        <span class="dots" aria-label={`${game.charges} / ${CHARGE_MAX}`}>
+          {Array.from({ length: CHARGE_MAX }, (_, i) => (
+            <span key={i} class={i < game.charges ? 'dot full' : 'dot'} />
+          ))}
+        </span>
+        {game.charges < CHARGE_MAX && (
+          <small class="muted">{m.ui.nextCharge(beatsToClock(BEATS_PER_CHARGE - game.chargeBeats, speed))}</small>
+        )}
+      </div>
+      {game.phase === 'resting' && <p class="muted">{m.ui.resting}</p>}
+
+      <h3>{m.ui.talents}</h3>
+      {hero.talents.length === 0 ? (
+        <p class="muted small">{m.ui.noTalents}</p>
+      ) : (
+        <ul class="plain">
+          {hero.talents.map((t, i) => (
+            <li key={i} title={m.talents[t.key]?.desc}>
+              {m.rewardTitle({ kind: 'talent', talent: t }, ctx)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function DreamPanel({ game, locale }: { game: GameState; locale: Locale }) {
+  const m = messages(locale);
+  const ctx = narrationContext(game, locale);
+  const { life } = game;
+  const stats = effectiveStats(life);
+  const hpMax = maxHp(life);
+  const atCeiling = life.level >= MAX_LEVEL;
+
+  return (
+    <section class="panel hero">
+      <h2>{m.ui.inDream}</h2>
+      <p class="muted">
+        {m.ui.dream(life.n)} · {m.ui.activity[life.activity]} · {ctx.age(life.ageMonths)}
+      </p>
+
+      <dl class="facts">
+        <dt>{m.ui.realm}</dt>
+        <dd>{levelLabel(m, life.level)}</dd>
+      </dl>
+
       <Meter label={m.ui.hp} value={life.hp} max={hpMax} kind="hp" />
-      {!atCeiling && <Meter label={m.ui.qi} value={life.qi} max={qiNeed} kind="qi" />}
+      {!atCeiling && <Meter label={m.ui.qi} value={life.qi} max={qiToReach(life.level + 1)} kind="qi" />}
 
       <h3>{m.ui.stats}</h3>
       <dl class="stats">

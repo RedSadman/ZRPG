@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { CHRONICLE_LIMIT, JOURNAL_LIMIT, START_AGE_MONTHS, advanceMonths, advanceSteps, catchUp, dreamsCompleted, newGame, step } from './sim.ts';
+import { CHRONICLE_LIMIT, JOURNAL_LIMIT, START_AGE_MONTHS, advanceMonths, advanceSteps, catchUp, newGame, setAutopilot, step } from './sim.ts';
+
+/** A game that plays itself: rewards are picked by priority, so dreams keep coming. */
+const autoGame = (seed: number) => ({ ...setAutopilot(newGame(seed), true), charges: 1000 });
 
 describe('sim', () => {
   it('starts dream #1 at the sect gates', () => {
@@ -18,9 +21,9 @@ describe('sim', () => {
     expect(s).toEqual(advanceSteps(newGame(9), 300));
   });
 
-  it('adds exactly one journal line per step unless a dream is waking', () => {
+  it('adds at least one journal line per step while dreaming', () => {
     let s = newGame(21);
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 200 && s.phase === 'dreaming'; i++) {
       const before = s.nextEntryId;
       s = step(s);
       expect(s.nextEntryId).toBeGreaterThan(before);
@@ -35,7 +38,7 @@ describe('sim', () => {
   });
 
   it('ends dreams with a summary in the chronicle and starts new ones', () => {
-    const s = advanceSteps(newGame(3), 3000);
+    const s = advanceSteps(autoGame(3), 3000);
     expect(s.chronicle.length).toBeGreaterThan(0);
     const first = s.chronicle[0]!;
     expect(first.n).toBe(1);
@@ -46,13 +49,13 @@ describe('sim', () => {
   });
 
   it('caps the journal and the chronicle', () => {
-    const s = advanceSteps(newGame(11), 20_000);
+    const s = advanceSteps(autoGame(11), 20_000);
     expect(s.journal.length).toBeLessThanOrEqual(JOURNAL_LIMIT);
     expect(s.chronicle.length).toBeLessThanOrEqual(CHRONICLE_LIMIT);
   });
 
   it('never lets a dreamer grow younger or cultivate past the ceiling', () => {
-    let s = newGame(8);
+    let s = autoGame(8);
     let lastAge = s.life.ageMonths;
     for (let i = 0; i < 2000; i++) {
       s = step(s);
@@ -68,6 +71,6 @@ describe('sim', () => {
     const start = newGame(77);
     const s = catchUp(start, 500);
     const last = s.journal.at(-1)!.event;
-    expect(last).toEqual({ kind: 'away', months: s.tick - start.tick, dreamsEnded: dreamsCompleted(s) });
+    expect(last).toEqual({ kind: 'away', months: s.tick - start.tick, dreamsEnded: s.dreamsEnded });
   });
 });

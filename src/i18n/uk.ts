@@ -173,6 +173,52 @@ export const uk: Messages = {
     nineTurnsBreath: "Дихання Дев'яти Обертів",
     heavenEarthMethod: 'Метод Єднання Неба і Землі',
   },
+  talents: {
+    ironSkin: { name: 'Залізна шкіра', desc: "+10% до здоров'я в кожному сні" },
+    quickStep: { name: 'Легкий крок', desc: 'Втеча вдається частіше' },
+    goldenTouch: { name: 'Золоті пальці', desc: 'Трофеї та духовні камені на 20% цінніші' },
+    luckyStar: { name: 'Щаслива зірка', desc: '+3 до Удачі' },
+    steadyHeart: { name: 'Загартоване серце', desc: '+10% до шансу прориву уві сні й наяву' },
+    qiSponge: { name: 'Губка для ці', desc: '+10% до швидкості культивації' },
+    rootRefine: { name: 'Очищення кореня', desc: 'Духовний корінь стає кращим на ступінь' },
+    deathMemory: { name: "Пам'ять смерті", desc: '+25% урону проти того, хто тебе вбив' },
+  },
+  rewardTitle: (r, c) => {
+    switch (r.kind) {
+      case 'qi':
+        return 'Відлуння ці';
+      case 'technique':
+        return `Техніка «${c.m.techniques[r.key]}»`;
+      case 'cultivation':
+        return `Метод «${c.m.techniques[r.key]}»`;
+      case 'item':
+        return cap(c.item(r.item, 'nom'));
+      case 'talent': {
+        const name = c.m.talents[r.talent.key]!.name;
+        return r.talent.enemy ? `${name}: ${c.enemy(r.talent.enemy).nom}` : name;
+      }
+      case 'stats':
+        return 'Загартування';
+    }
+  },
+  rewardDesc: (r, c) => {
+    switch (r.kind) {
+      case 'qi':
+        return `+${r.amount} ці наяву`;
+      case 'technique':
+        return 'Знатимеш її з першого дня кожного сну';
+      case 'cultivation':
+        return 'Швидша культивація уві сні й наяву';
+      case 'item':
+        return `${c.m.ranks[r.item.rank]} ранг, рівень ${r.item.level}. На тобі на початку кожного сну`;
+      case 'talent':
+        return c.m.talents[r.talent.key]!.desc;
+      case 'stats':
+        return Object.entries(r.stats)
+          .map(([k, v]) => `+${v} ${c.m.stats[k as keyof typeof c.m.stats]}`)
+          .join(', ');
+    }
+  },
   stats: { body: 'Тіло', qi: 'Ці', agi: 'Спритність', mind: 'Свідомість', luck: 'Удача' },
   slots: { weapon: 'Зброя', robe: 'Мантія', bracers: 'Наручі', boots: 'Чоботи', pendant: 'Кулон', ring: 'Персень' },
   itemName: (item, form, m) => {
@@ -214,6 +260,30 @@ export const uk: Messages = {
     language: 'Мова',
     newGame: 'Нова гра',
     newGameConfirm: 'Почати все спочатку? Поточне збереження буде стерто.',
+    reality: 'Наяву',
+    inDream: 'Уві сні',
+    charges: 'Сни в запасі',
+    nextCharge: (t) => `наступний за ${t}`,
+    chooseTitle: 'Сон скінчився. Що забрати з собою?',
+    autopilot: 'Автопілот',
+    autopilotHint: 'Сам обирає нагороду за пріоритетом і засинає знову',
+    priority: 'Пріоритет нагород',
+    rewardKinds: {
+      qi: 'Ці',
+      talent: 'Таланти',
+      item: 'Предмети',
+      technique: 'Техніки',
+      cultivation: 'Методи культивації',
+      stats: 'Загартування',
+    },
+    moveUp: 'Вище',
+    moveDown: 'Нижче',
+    breakthrough: (realm) => `Спробувати прорив до ${realm}`,
+    breakthroughChance: (p) => `шанс ${p}%`,
+    injured: (t) => `Меридіани загоюються: ${t}`,
+    talents: 'Таланти',
+    noTalents: 'Ще жодного',
+    resting: 'Подушка відпочиває',
   },
   ageYears: { one: '{n} рік', few: '{n} роки', many: '{n} років', other: '{n} року' },
   events: {
@@ -328,6 +398,14 @@ export const uk: Messages = {
     wake: (e) => `Ти прокидаєшся в корчмі. Просо ще не доварилось. Сон №${e.dream} завершено, оцінка життя — ${e.score}.`,
     away: (e, c) =>
       `Поки тебе не було, у снах минуло ${c.plural(e.months, MONTHS)}; завершено снів: ${e.dreamsEnded}.`,
+    reward: (e, c) =>
+      `Прокинувшись, ти ${c.g('забрав', 'забрала')} із собою: ${c.m.rewardTitle(e.reward, c)}${e.auto ? ' (автопілот)' : ''}.`,
+    realStageUp: (e, c) =>
+      `Наяву ти ${c.g('досяг', 'досягла')} ${c.m.stageGen(stageOf(e.level))} ${c.m.realms[realmKey(e.level)]!.gen}. Відтепер кожен сон починається звідси.`,
+    realBreakthrough: (e, c) =>
+      e.success
+        ? `Наяву небо над корчмою потемніло — ти ${c.g('прорвався', 'прорвалася')} до ${c.m.realms[realmKey(e.level)]!.gen}! Відтепер кожен сон починається звідси.`
+        : `Наяву прорив до ${c.m.realms[realmKey(e.level)]!.gen} провалився. Меридіани палають, і Подушка мовчатиме, доки вони не загояться.`,
   },
   summary: (s, c) => {
     const cause =

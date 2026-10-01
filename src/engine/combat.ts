@@ -1,10 +1,11 @@
 import { COMBAT_TECHNIQUES } from '../data/techniques.ts';
 import type { EnemyDef } from '../data/enemies.ts';
 import { HEALING_PILL } from '../data/pills.ts';
+import { DEATH_MEMORY, TALENT_EFFECTS } from '../data/talents.ts';
 import { realmOf } from './levels.ts';
 import { between, chance, nextFloat, type Rng } from './rng.ts';
 import type { Life } from './types.ts';
-import { effectiveStats, maxHp, totalArmor, weaponDamage } from './hero.ts';
+import { effectiveStats, hasTalent, maxHp, totalArmor, weaponDamage } from './hero.ts';
 
 export interface CombatTechnique {
   key: string;
@@ -25,6 +26,10 @@ export interface Combatant {
   armor: number;
   qiPool: number;
   techniques: CombatTechnique[];
+  /** Multiplies outgoing damage (memory of death against the one who killed you). */
+  damageMult: number;
+  /** Added to the chance of a successful retreat. */
+  fleeBonus: number;
 }
 
 export type FightOutcome = 'won' | 'fled' | 'rescued' | 'lost';
@@ -43,7 +48,7 @@ const MAX_ROUNDS = 40;
 /** Below this share of HP the hero drinks a pill or, without one, tries to run. */
 const LOW_HP = 0.35;
 
-export function heroCombatant(life: Life): Combatant {
+export function heroCombatant(life: Life, enemyKey?: string): Combatant {
   const stats = effectiveStats(life);
   const hp = maxHp(life);
   return {
@@ -62,6 +67,9 @@ export function heroCombatant(life: Life): Combatant {
       // Mastery: +5% per 10 uses, up to +45%.
       return { key: t.key, k: def.k * (1 + 0.05 * Math.min(9, Math.floor(t.uses / 10))), cost: def.cost, stat: def.stat };
     }),
+    damageMult:
+      enemyKey && hasTalent(life.talents, DEATH_MEMORY, enemyKey) ? TALENT_EFFECTS.deathMemoryDamage : 1,
+    fleeBonus: hasTalent(life.talents, 'quickStep') ? TALENT_EFFECTS.quickStepFlee : 0,
   };
 }
 
@@ -82,6 +90,8 @@ export function enemyCombatant(def: EnemyDef, level: number): Combatant {
     armor: (1 + 0.8 * level) * def.armor,
     qiPool: 10 + stat * 4,
     techniques: def.technique ? [{ key: 'enemy', k: def.technique.k, cost: def.technique.cost, stat: 'qi' }] : [],
+    damageMult: 1,
+    fleeBonus: 0,
   };
 }
 
@@ -123,7 +133,7 @@ export function fight(hero: Combatant, foe: Combatant, pills: number, luckForRes
         pillsUsed++;
         me.hp = Math.min(me.maxHp, me.hp + me.maxHp * HEALING_PILL.heal);
       } else if (them.hp > them.maxHp * 0.4) {
-        const fleeChance = Math.min(0.9, Math.max(0.05, 0.4 + 0.02 * (me.agi - them.agi)));
+        const fleeChance = Math.min(0.9, Math.max(0.05, 0.4 + me.fleeBonus + 0.02 * (me.agi - them.agi)));
         if (chance(rng, fleeChance)) return result('fled');
       }
     }
@@ -155,7 +165,7 @@ function attack(att: Combatant, def: Combatant, rng: Rng): string | null {
 
   const realmGap = realmOf(att.level) - realmOf(def.level);
   let dmg = (att.weapon + 0.5 * att.body + (tech ? tech.k * statValue(att, tech) : 0)) * between(rng, 0.85, 1.15);
-  dmg = dmg * 1.5 ** realmGap - 0.5 * def.armor;
+  dmg = dmg * att.damageMult * 1.5 ** realmGap - 0.5 * def.armor;
   if (chance(rng, 0.05 + 0.005 * att.luck)) dmg *= 2;
   def.hp -= Math.max(1, dmg);
   return tech?.key ?? null;

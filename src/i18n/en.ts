@@ -112,6 +112,52 @@ export const en: Messages = {
     nineTurnsBreath: 'Breath of Nine Turns',
     heavenEarthMethod: 'Method of Heaven and Earth United',
   },
+  talents: {
+    ironSkin: { name: 'Iron Skin', desc: '+10% health in every dream' },
+    quickStep: { name: 'Quick Step', desc: 'Retreats succeed more often' },
+    goldenTouch: { name: 'Golden Fingers', desc: 'Trophies and spirit stones are worth 20% more' },
+    luckyStar: { name: 'Lucky Star', desc: '+3 Luck' },
+    steadyHeart: { name: 'Tempered Heart', desc: '+10% breakthrough chance, in dreams and awake' },
+    qiSponge: { name: 'Qi Sponge', desc: '+10% cultivation speed' },
+    rootRefine: { name: 'Root Refinement', desc: 'Your spirit root improves by one grade' },
+    deathMemory: { name: 'Memory of Death', desc: '+25% damage against whoever killed you' },
+  },
+  rewardTitle: (r, c) => {
+    switch (r.kind) {
+      case 'qi':
+        return 'Echo of Qi';
+      case 'technique':
+        return `Technique “${c.m.techniques[r.key]}”`;
+      case 'cultivation':
+        return `Method “${c.m.techniques[r.key]}”`;
+      case 'item':
+        return cap(c.item(r.item, 'nom'));
+      case 'talent': {
+        const name = c.m.talents[r.talent.key]!.name;
+        return r.talent.enemy ? `${name}: ${c.enemy(r.talent.enemy).nom}` : name;
+      }
+      case 'stats':
+        return 'Tempering';
+    }
+  },
+  rewardDesc: (r, c) => {
+    switch (r.kind) {
+      case 'qi':
+        return `+${r.amount} qi while awake`;
+      case 'technique':
+        return 'Known from the first day of every dream';
+      case 'cultivation':
+        return 'Faster cultivation, in dreams and awake';
+      case 'item':
+        return `${c.m.ranks[r.item.rank]} rank, level ${r.item.level}. Worn at the start of every dream`;
+      case 'talent':
+        return c.m.talents[r.talent.key]!.desc;
+      case 'stats':
+        return Object.entries(r.stats)
+          .map(([k, v]) => `+${v} ${c.m.stats[k as keyof typeof c.m.stats]}`)
+          .join(', ');
+    }
+  },
   stats: { body: 'Body', qi: 'Qi', agi: 'Agility', mind: 'Mind', luck: 'Luck' },
   slots: { weapon: 'Weapon', robe: 'Robe', bracers: 'Bracers', boots: 'Boots', pendant: 'Pendant', ring: 'Ring' },
   itemName: (item, _form, m) => {
@@ -152,6 +198,30 @@ export const en: Messages = {
     language: 'Language',
     newGame: 'New game',
     newGameConfirm: 'Start over? The current save will be erased.',
+    reality: 'Awake',
+    inDream: 'In the dream',
+    charges: 'Dreams in store',
+    nextCharge: (t) => `next in ${t}`,
+    chooseTitle: 'The dream is over. What will you take with you?',
+    autopilot: 'Autopilot',
+    autopilotHint: 'Picks a reward by priority and falls asleep again',
+    priority: 'Reward priority',
+    rewardKinds: {
+      qi: 'Qi',
+      talent: 'Talents',
+      item: 'Items',
+      technique: 'Techniques',
+      cultivation: 'Cultivation methods',
+      stats: 'Tempering',
+    },
+    moveUp: 'Up',
+    moveDown: 'Down',
+    breakthrough: (realm) => `Attempt the breakthrough to ${realm}`,
+    breakthroughChance: (p) => `${p}% chance`,
+    injured: (t) => `Meridians healing: ${t}`,
+    talents: 'Talents',
+    noTalents: 'None yet',
+    resting: 'The Pillow is resting',
   },
   ageYears: { one: '{n}', other: '{n}' },
   events: {
@@ -258,6 +328,13 @@ export const en: Messages = {
     },
     wake: (e) => `You wake up in the inn. The millet is not done yet. Dream #${e.dream} is over; life score ${e.score}.`,
     away: (e, c) => `While you were away, ${c.plural(e.months, MONTHS)} passed in dreams; dreams finished: ${e.dreamsEnded}.`,
+    reward: (e, c) => `On waking, you took with you: ${c.m.rewardTitle(e.reward, c)}${e.auto ? ' (autopilot)' : ''}.`,
+    realStageUp: (e, c) =>
+      `Awake, you reached ${realmName(c.m, e.level)}, ${c.m.stage(stageOf(e.level))}. Every dream now begins from here.`,
+    realBreakthrough: (e, c) =>
+      e.success
+        ? `Awake, the sky above the inn darkened — you broke through to ${realmName(c.m, e.level)}! Every dream now begins from here.`
+        : `Awake, the breakthrough to ${realmName(c.m, e.level)} failed. Your meridians burn, and the Pillow will stay silent until they heal.`,
   },
   summary: (s, c) => {
     const cause =

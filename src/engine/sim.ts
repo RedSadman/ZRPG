@@ -1,13 +1,22 @@
 import { createRng, type Rng } from './rng.ts';
 import { generateHero } from './hero.ts';
 import { liveMonth, newLife, type Emit } from './dream.ts';
-import type { DreamSummary, GameEvent, GameState, Life } from './types.ts';
+import {
+  CHARGE_MAX,
+  DEFAULT_PRIORITY,
+  applyReward,
+  autoPick,
+  makeOffer,
+  realBreakthrough,
+  realityBeat,
+} from './reality.ts';
+import type { DreamSummary, GameEvent, GameState, Life, RewardKind } from './types.ts';
 
 export { START_AGE_MONTHS } from './dream.ts';
 
 export const JOURNAL_LIMIT = 500;
 export const CHRONICLE_LIMIT = 100;
-/** A step stops at the next journal line; this caps how many silent months one step may skip. */
+/** A dreaming beat stops at the next journal line; this caps how many silent months one beat may skip. */
 export const MAX_QUIET_MONTHS = 600;
 const SUMMARY_HIGHLIGHTS = 8;
 
@@ -16,10 +25,16 @@ export function newGame(seed: number): GameState {
   const hero = generateHero(rng);
   const state: GameState = {
     tick: 0,
+    beat: 0,
     rngState: 0,
     hero,
     life: newLife(hero, 1),
-    awake: false,
+    phase: 'dreaming',
+    offer: null,
+    charges: CHARGE_MAX - 1,
+    chargeBeats: 0,
+    autopilot: { enabled: false, priority: [...DEFAULT_PRIORITY] },
+    dreamsEnded: 0,
     journal: [],
     nextEntryId: 1,
     chronicle: [],
@@ -29,54 +44,95 @@ export function newGame(seed: number): GameState {
   return state;
 }
 
-/** Plays forward to the next journal line (the UI calls this once per beat). Pure. */
+/** One beat of real time (the UI calls this every ~3 s). Pure. */
 export function step(state: GameState): GameState {
   return advanceSteps(state, 1);
 }
 
 export function advanceSteps(state: GameState, steps: number): GameState {
-  const draft = clone(state);
-  const rng = createRng(draft.rngState);
-  for (let i = 0; i < steps; i++) {
-    const before = draft.nextEntryId;
-    for (let m = 0; m < MAX_QUIET_MONTHS && draft.nextEntryId === before; m++) applyMonth(draft, rng);
-  }
-  draft.rngState = rng.state;
-  return draft;
+  return mutate(state, (s, rng) => {
+    for (let i = 0; i < steps; i++) applyBeat(s, rng);
+  });
 }
 
-/** Plays forward exactly `months` dreamed months. Pure. */
+/** Plays forward exactly `months` dreamed months, waking into choices as needed. For tests and tools. Pure. */
 export function advanceMonths(state: GameState, months: number): GameState {
-  const draft = clone(state);
-  const rng = createRng(draft.rngState);
-  for (let i = 0; i < months; i++) applyMonth(draft, rng);
-  draft.rngState = rng.state;
-  return draft;
+  return mutate(state, (s, rng) => {
+    for (let i = 0; i < months && s.phase === 'dreaming'; i++) applyMonth(s, rng);
+  });
 }
 
 /** Catches up after the player was away and leaves one summary line instead of a wall of text. */
 export function catchUp(state: GameState, steps: number): GameState {
   if (steps <= 0) return state;
   const draft = advanceSteps(state, steps);
-  const dreamsEnded = dreamsCompleted(draft) - dreamsCompleted(state);
-  record(draft, { kind: 'away', months: draft.tick - state.tick, dreamsEnded });
+  record(draft, { kind: 'away', months: draft.tick - state.tick, dreamsEnded: draft.dreamsEnded - state.dreamsEnded });
   return draft;
 }
 
-export function dreamsCompleted(state: GameState): number {
-  return state.life.n - (state.awake ? 0 : 1);
+// --- Player decisions (pure) -------------------------------------------------
+
+export function chooseReward(state: GameState, index: number): GameState {
+  if (state.phase !== 'choosing' || !state.offer?.[index]) return state;
+  return mutate(state, (s, rng) => takeReward(s, index, false, rng));
+}
+
+export function attemptRealBreakthrough(state: GameState): GameState {
+  return mutate(state, (s, rng) => realBreakthrough(s, rng, emitter(s)));
+}
+
+export function setAutopilot(state: GameState, enabled: boolean): GameState {
+  return { ...state, autopilot: { ...state.autopilot, enabled } };
+}
+
+/** Moves a reward kind one place up (-1) or down (+1) in the autopilot's priority. */
+export function movePriority(state: GameState, kind: RewardKind, delta: -1 | 1): GameState {
+  const priority = [...state.autopilot.priority];
+  const from = priority.indexOf(kind);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= priority.length) return state;
+  [priority[from], priority[to]] = [priority[to]!, priority[from]!];
+  return { ...state, autopilot: { ...state.autopilot, priority } };
+}
+
+// --- The loop ----------------------------------------------------------------
+
+function applyBeat(s: GameState, rng: Rng): void {
+  s.beat += 1;
+  realityBeat(s, rng, emitter(s));
+  switch (s.phase) {
+    case 'dreaming': {
+      const before = s.nextEntryId;
+      for (let m = 0; m < MAX_QUIET_MONTHS && s.nextEntryId === before && s.phase === 'dreaming'; m++) applyMonth(s, rng);
+      return;
+    }
+    case 'choosing':
+      if (s.autopilot.enabled && s.offer) takeReward(s, autoPick(s.offer, s.autopilot.priority), true, rng);
+      return;
+    case 'resting':
+      if (s.charges > 0 && s.hero.injuryBeats === 0) {
+        s.charges -= 1;
+        s.life = newLife(s.hero, s.life.n + 1);
+        s.phase = 'dreaming';
+        beginDream(s);
+      }
+      return;
+  }
 }
 
 function applyMonth(s: GameState, rng: Rng): void {
   s.tick += 1;
-  if (s.awake) {
-    s.life = newLife(s.hero, s.life.n + 1);
-    s.awake = false;
-    beginDream(s);
-    return;
-  }
   liveMonth(s, rng, emitter(s));
-  if (s.life.death) wake(s);
+  if (s.life.death) wake(s, rng);
+}
+
+function takeReward(s: GameState, index: number, auto: boolean, rng: Rng): void {
+  const reward = s.offer?.[index];
+  if (!reward) return;
+  record(s, { kind: 'reward', dream: s.life.n, reward, auto });
+  applyReward(s, reward, rng, emitter(s));
+  s.offer = null;
+  s.phase = 'resting';
 }
 
 function beginDream(s: GameState): void {
@@ -85,13 +141,15 @@ function beginDream(s: GameState): void {
   record(s, { kind: 'joinSect', ageMonths: life.ageMonths, root: hero.root, path: hero.path });
 }
 
-function wake(s: GameState): void {
+function wake(s: GameState, rng: Rng): void {
   const life = s.life;
   const summary = summarize(life);
   s.chronicle.push(summary);
   if (s.chronicle.length > CHRONICLE_LIMIT) s.chronicle.splice(0, s.chronicle.length - CHRONICLE_LIMIT);
+  s.dreamsEnded += 1;
   record(s, { kind: 'wake', dream: life.n, score: summary.score });
-  s.awake = true;
+  s.offer = makeOffer(s.hero, life, summary.score, rng);
+  s.phase = 'choosing';
 }
 
 export function lifeScore(life: Life): number {
@@ -128,7 +186,15 @@ function record(s: GameState, event: GameEvent): void {
   if (s.journal.length > JOURNAL_LIMIT) s.journal.splice(0, s.journal.length - JOURNAL_LIMIT);
 }
 
-/** Deep enough that the engine can mutate the draft without touching the caller's state. */
-function clone(s: GameState): GameState {
-  return { ...structuredClone({ ...s, journal: [], chronicle: [] }), journal: s.journal.slice(), chronicle: s.chronicle.slice() };
+/** Runs `fn` on a deep copy with its own RNG and returns the copy; the caller's state is untouched. */
+function mutate(state: GameState, fn: (s: GameState, rng: Rng) => void): GameState {
+  const draft: GameState = {
+    ...structuredClone({ ...state, journal: [], chronicle: [] }),
+    journal: state.journal.slice(),
+    chronicle: state.chronicle.slice(),
+  };
+  const rng = createRng(draft.rngState);
+  fn(draft, rng);
+  draft.rngState = rng.state;
+  return draft;
 }
