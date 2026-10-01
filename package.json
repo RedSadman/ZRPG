@@ -1,0 +1,27 @@
+{
+  "name": "zrpg",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Сон Жовтого Проса / Yellow Millet Dream — a zero-player xianxia life-simulator RPG",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "preact": "^11.0.0"
+  },
+  "overrides": {
+    "baseline-browser-mapping": "2.11.26"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}

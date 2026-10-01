@@ -1,0 +1,184 @@
+:root {
+  --paper: #f6f1e7;
+  --panel: #fffcf5;
+  --ink: #2b2620;
+  --ink-quiet: #6f665a;
+  --rule: #e2d8c6;
+  --accent: #b8862b; /* millet gold */
+  --accent-soft: #f1e2bf;
+  --danger: #9b3b2f;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #17150f;
+    --panel: #201d16;
+    --ink: #ece4d4;
+    --ink-quiet: #a59a87;
+    --rule: #3a3428;
+    --accent: #d8a94a;
+    --accent-soft: #3b3020;
+    --danger: #e07b6c;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 'Iowan Old Style', 'Palatino Linotype', Georgia, 'Noto Serif', serif;
+}
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.masthead h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  margin: 4px 0 24px;
+  color: var(--ink-quiet);
+  font-style: italic;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+}
+
+.hero dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0 0 20px;
+}
+
+.hero dt {
+  color: var(--ink-quiet);
+}
+
+.hero dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.controls {
+  display: grid;
+  gap: 8px;
+}
+
+.label {
+  color: var(--ink-quiet);
+  font-size: 0.85rem;
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.segmented button {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--rule);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+button.quiet {
+  margin-top: 8px;
+  color: var(--ink-quiet);
+  font-size: 0.85rem;
+  justify-self: start;
+  padding-left: 0;
+}
+
+button.quiet:hover {
+  color: var(--danger);
+}
+
+.journal ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.entry {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.entry:last-child {
+  border-bottom: 0;
+}
+
+.entry-dreamStart {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.entry-wake {
+  color: var(--danger);
+}
+
+.entry-away {
+  color: var(--ink-quiet);
+  font-style: italic;
+}
