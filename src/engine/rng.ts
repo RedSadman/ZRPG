@@ -22,3 +22,26 @@ export function nextFloat(rng: Rng): number {
 export function nextInt(rng: Rng, min: number, max: number): number {
   return min + Math.floor(nextFloat(rng) * (max - min + 1));
 }
+
+/** Uniform float in [min, max). */
+export function between(rng: Rng, min: number, max: number): number {
+  return min + nextFloat(rng) * (max - min);
+}
+
+export function chance(rng: Rng, p: number): boolean {
+  return nextFloat(rng) < p;
+}
+
+export function pick<T>(rng: Rng, items: readonly T[]): T {
+  return items[Math.floor(nextFloat(rng) * items.length)]!;
+}
+
+export function pickWeighted<T extends { weight: number }>(rng: Rng, items: readonly T[]): T {
+  const total = items.reduce((sum, i) => sum + i.weight, 0);
+  let roll = nextFloat(rng) * total;
+  for (const item of items) {
+    roll -= item.weight;
+    if (roll < 0) return item;
+  }
+  return items.at(-1)!;
+}

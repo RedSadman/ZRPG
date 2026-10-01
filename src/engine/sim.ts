@@ -1,87 +1,126 @@
-import { createRng, nextFloat, nextInt, type Rng } from './rng';
-import type { GameEvent, GameState } from './types';
+import { createRng, type Rng } from './rng.ts';
+import { generateHero } from './hero.ts';
+import { liveMonth, newLife, type Emit } from './dream.ts';
+import type { DreamSummary, GameEvent, GameState, Life } from './types.ts';
 
-// Milestone 1 placeholder: a dream is just ageing, a few flavour events and a random death.
-// Real states (sect, travel, combat, cultivation) replace `liveOneMonth` in milestone 2.
+export { START_AGE_MONTHS } from './dream.ts';
 
-export const START_AGE_MONTHS = 16 * 12;
 export const JOURNAL_LIMIT = 500;
+export const CHRONICLE_LIMIT = 100;
+/** A step stops at the next journal line; this caps how many silent months one step may skip. */
+export const MAX_QUIET_MONTHS = 600;
+const SUMMARY_HIGHLIGHTS = 8;
 
 export function newGame(seed: number): GameState {
+  const rng = createRng(seed);
+  const hero = generateHero(rng);
   const state: GameState = {
     tick: 0,
-    rngState: createRng(seed).state,
-    hero: { nameKey: 'xiaoLin' },
-    dream: { n: 1, ageMonths: START_AGE_MONTHS, spiritStones: 0, awake: false },
+    rngState: 0,
+    hero,
+    life: newLife(hero, 1),
+    awake: false,
     journal: [],
     nextEntryId: 1,
+    chronicle: [],
   };
-  record(state, { kind: 'dreamStart', dream: 1 });
+  beginDream(state);
+  state.rngState = rng.state;
   return state;
 }
 
-/** Advances one tick. Pure: the input state is not modified. */
+/** Plays forward to the next journal line (the UI calls this once per beat). Pure. */
 export function step(state: GameState): GameState {
-  return advance(state, 1);
+  return advanceSteps(state, 1);
 }
 
-/** Advances `ticks` ticks in one go (offline catch-up, fast-forward). Pure. */
-export function advance(state: GameState, ticks: number): GameState {
+export function advanceSteps(state: GameState, steps: number): GameState {
   const draft = clone(state);
   const rng = createRng(draft.rngState);
-  for (let i = 0; i < ticks; i++) applyTick(draft, rng);
+  for (let i = 0; i < steps; i++) {
+    const before = draft.nextEntryId;
+    for (let m = 0; m < MAX_QUIET_MONTHS && draft.nextEntryId === before; m++) applyMonth(draft, rng);
+  }
+  draft.rngState = rng.state;
+  return draft;
+}
+
+/** Plays forward exactly `months` dreamed months. Pure. */
+export function advanceMonths(state: GameState, months: number): GameState {
+  const draft = clone(state);
+  const rng = createRng(draft.rngState);
+  for (let i = 0; i < months; i++) applyMonth(draft, rng);
   draft.rngState = rng.state;
   return draft;
 }
 
 /** Catches up after the player was away and leaves one summary line instead of a wall of text. */
-export function catchUp(state: GameState, ticks: number): GameState {
-  if (ticks <= 0) return state;
-  const dreamsBefore = state.dream.n - (state.dream.awake ? 0 : 1);
-  const draft = advance(state, ticks);
-  const dreamsAfter = draft.dream.n - (draft.dream.awake ? 0 : 1);
-  record(draft, { kind: 'away', months: ticks, dreamsEnded: dreamsAfter - dreamsBefore });
+export function catchUp(state: GameState, steps: number): GameState {
+  if (steps <= 0) return state;
+  const draft = advanceSteps(state, steps);
+  const dreamsEnded = dreamsCompleted(draft) - dreamsCompleted(state);
+  record(draft, { kind: 'away', months: draft.tick - state.tick, dreamsEnded });
   return draft;
 }
 
-function applyTick(s: GameState, rng: Rng): void {
+export function dreamsCompleted(state: GameState): number {
+  return state.life.n - (state.awake ? 0 : 1);
+}
+
+function applyMonth(s: GameState, rng: Rng): void {
   s.tick += 1;
-
-  if (s.dream.awake) {
-    const n = s.dream.n + 1;
-    s.dream = { n, ageMonths: START_AGE_MONTHS, spiritStones: 0, awake: false };
-    record(s, { kind: 'dreamStart', dream: n });
+  if (s.awake) {
+    s.life = newLife(s.hero, s.life.n + 1);
+    s.awake = false;
+    beginDream(s);
     return;
   }
-
-  s.dream.ageMonths += 1;
-  if (nextFloat(rng) < deathChancePerMonth(s.dream.ageMonths)) {
-    s.dream.awake = true;
-    record(s, { kind: 'wake', dream: s.dream.n, ageMonths: s.dream.ageMonths });
-    return;
-  }
-
-  liveOneMonth(s, rng);
+  liveMonth(s, rng, emitter(s));
+  if (s.life.death) wake(s);
 }
 
-function liveOneMonth(s: GameState, rng: Rng): void {
-  const ageMonths = s.dream.ageMonths;
-  const roll = nextFloat(rng);
-  if (roll < 0.08) {
-    record(s, { kind: 'meditate', ageMonths });
-  } else if (roll < 0.12) {
-    record(s, { kind: 'wander', ageMonths });
-  } else if (roll < 0.15) {
-    const amount = nextInt(rng, 1, 10);
-    s.dream.spiritStones += amount;
-    record(s, { kind: 'findStones', ageMonths, amount });
-  }
+function beginDream(s: GameState): void {
+  const { hero, life } = s;
+  record(s, { kind: 'dreamStart', dream: life.n });
+  record(s, { kind: 'joinSect', ageMonths: life.ageMonths, root: hero.root, path: hero.path });
 }
 
-/** ≈5% a year while young, climbing steeply after 60 — a mortal's life with no cultivation yet. */
-export function deathChancePerMonth(ageMonths: number): number {
-  const years = ageMonths / 12;
-  return 0.004 + Math.max(0, years - 60) * 0.002;
+function wake(s: GameState): void {
+  const life = s.life;
+  const summary = summarize(life);
+  s.chronicle.push(summary);
+  if (s.chronicle.length > CHRONICLE_LIMIT) s.chronicle.splice(0, s.chronicle.length - CHRONICLE_LIMIT);
+  record(s, { kind: 'wake', dream: life.n, score: summary.score });
+  s.awake = true;
+}
+
+export function lifeScore(life: Life): number {
+  return life.level * 10 + Math.floor(life.ageMonths / 24) + life.bossesKilled.length * 15 + Math.floor(life.totals.kills / 10);
+}
+
+function summarize(life: Life): DreamSummary {
+  const top = life.highlights
+    .map((h, i) => ({ ...h, i }))
+    .sort((a, b) => b.priority - a.priority || a.i - b.i)
+    .slice(0, SUMMARY_HIGHLIGHTS)
+    .sort((a, b) => a.i - b.i)
+    .map((h) => h.event);
+  return {
+    n: life.n,
+    ageMonths: life.ageMonths,
+    level: life.level,
+    death: life.death!,
+    score: lifeScore(life),
+    kills: life.totals.kills,
+    highlights: top,
+  };
+}
+
+function emitter(s: GameState): Emit {
+  return (event, priority = 0) => {
+    record(s, event);
+    if (priority >= 3) s.life.highlights.push({ priority, event });
+  };
 }
 
 function record(s: GameState, event: GameEvent): void {
@@ -89,6 +128,7 @@ function record(s: GameState, event: GameEvent): void {
   if (s.journal.length > JOURNAL_LIMIT) s.journal.splice(0, s.journal.length - JOURNAL_LIMIT);
 }
 
+/** Deep enough that the engine can mutate the draft without touching the caller's state. */
 function clone(s: GameState): GameState {
-  return { ...s, hero: { ...s.hero }, dream: { ...s.dream }, journal: s.journal.slice() };
+  return { ...structuredClone({ ...s, journal: [], chronicle: [] }), journal: s.journal.slice(), chronicle: s.chronicle.slice() };
 }

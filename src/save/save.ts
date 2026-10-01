@@ -1,7 +1,7 @@
-import type { GameState } from '../engine/types';
+import type { GameState } from '../engine/types.ts';
 
 export const SAVE_KEY = 'zrpg.save';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export interface SaveFile {
   version: number;

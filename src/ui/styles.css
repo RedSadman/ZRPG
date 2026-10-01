@@ -7,6 +7,11 @@
   --accent: #b8862b; /* millet gold */
   --accent-soft: #f1e2bf;
   --danger: #9b3b2f;
+  --hp: #a5483a;
+  --qi: #3f7f8c;
+  --rank-1: #3f8a5a; /* Spirit: jade */
+  --rank-2: #3f63a8; /* Earth: deep blue */
+  --rank-3: #b07a12; /* Heaven: gold */
   color-scheme: light;
 }
 
@@ -20,6 +25,11 @@
     --accent: #d8a94a;
     --accent-soft: #3b3020;
     --danger: #e07b6c;
+    --hp: #d9735f;
+    --qi: #6fb6c4;
+    --rank-1: #6cc48b;
+    --rank-2: #86a6e8;
+    --rank-3: #e6b34a;
     color-scheme: dark;
   }
 }
@@ -55,7 +65,7 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 300px 1fr;
   gap: 16px;
   align-items: start;
 }
@@ -76,28 +86,6 @@ body {
 .panel h2 {
   margin: 0 0 12px;
   font-size: 1.15rem;
-}
-
-.hero dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 16px;
-  margin: 0 0 20px;
-}
-
-.hero dt {
-  color: var(--ink-quiet);
-}
-
-.hero dd {
-  margin: 0;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.controls {
-  display: grid;
-  gap: 8px;
 }
 
 .label {
@@ -156,7 +144,7 @@ button.quiet:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: calc(100vh - 200px);
+  max-height: 60vh;
   overflow-y: auto;
 }
 
@@ -174,11 +162,170 @@ button.quiet:hover {
   font-weight: 600;
 }
 
-.entry-wake {
-  color: var(--danger);
-}
-
 .entry-away {
   color: var(--ink-quiet);
   font-style: italic;
+}
+
+/* --- Milestone 2: hero panel, last dream, chronicle --- */
+
+.side,
+.main {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
+}
+
+.panel h3 {
+  margin: 16px 0 6px;
+  font-size: 0.95rem;
+  color: var(--ink-quiet);
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--ink-quiet);
+}
+
+.hero > p.muted {
+  margin: -6px 0 12px;
+  font-size: 0.9rem;
+}
+
+.facts,
+.stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0 0 12px;
+}
+
+.facts dt,
+.stats dt {
+  color: var(--ink-quiet);
+}
+
+.facts dd,
+.stats dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter {
+  margin: 8px 0;
+}
+
+.meter-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--ink-quiet);
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--rule);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.meter-hp .meter-fill {
+  background: var(--hp);
+}
+
+.meter-qi .meter-fill {
+  background: var(--qi);
+}
+
+ul.plain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.92rem;
+}
+
+ul.plain li {
+  padding: 2px 0;
+}
+
+.equipment li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.equipment li > :last-child {
+  text-align: right;
+}
+
+.rank-0 {
+  color: var(--ink);
+}
+
+.rank-1 {
+  color: var(--rank-1);
+}
+
+.rank-2 {
+  color: var(--rank-2);
+  font-weight: 600;
+}
+
+.rank-3 {
+  color: var(--rank-3);
+  font-weight: 700;
+}
+
+.controls {
+  display: grid;
+  gap: 8px;
+}
+
+.last-dream .summary {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.highlights {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.92rem;
+}
+
+.highlights li {
+  padding: 2px 0;
+}
+
+.entry-death {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.entry-realmUp,
+.entry-wall {
+  color: var(--qi);
+  font-weight: 600;
+}
+
+.entry-wake {
+  color: var(--ink-quiet);
+  font-style: italic;
+}
+
+.chronicle ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.92rem;
+}
+
+.chronicle li {
+  padding: 3px 0;
 }

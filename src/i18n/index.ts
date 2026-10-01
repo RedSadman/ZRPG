@@ -1,9 +1,9 @@
-import { en } from './en';
-import { uk } from './uk';
-import type { Locale, Messages, PluralForms } from './types';
+import { en } from './en.ts';
+import { uk } from './uk.ts';
+import type { Locale, Messages, PluralForms } from './types.ts';
 
-export type { Locale, Messages, PluralForms } from './types';
-export { LOCALES } from './types';
+export type { Locale, Messages, PluralForms } from './types.ts';
+export { LOCALES } from './types.ts';
 
 const catalogs: Record<Locale, Messages> = { uk, en };
 
