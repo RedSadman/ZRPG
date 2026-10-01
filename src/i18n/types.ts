@@ -7,6 +7,7 @@ import type {
   GameEvent,
   Item,
   PendingFork,
+  QuestNote,
   Reward,
   RewardKind,
   Slot,
@@ -152,8 +153,17 @@ export interface Messages {
     forkInstinct: (instinct: string) => string;
     waitForMe: string;
     waitForMeHint: string;
+    karma: string;
+    reputation: string;
+    quest: string;
   };
   instincts: Record<Instinct, { name: string; desc: string }>;
+  /** "полювання на сірого духовного вовка" — what a task is, for the journal and the panel. */
+  questDesc: (q: QuestNote, c: NarrationContext) => string;
+  /** Why this temperament picked it: "найбезпечніше". */
+  questReason: Record<Instinct, string>;
+  /** When nothing on the board suited the temperament: "те, що було під силу". */
+  questReasonPlain: string;
   startPlaces: Record<string, { name: string; desc: string; elder: string }>;
   knowledge: Record<string, { name: string; desc: string }>;
   forks: Record<string, ForkTexts>;

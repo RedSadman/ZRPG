@@ -1,3 +1,5 @@
+import type { Instinct } from '../data/instincts.ts';
+import { QUEST_IDEALS, type QuestKind } from '../data/quests.ts';
 import { en } from './en.ts';
 import { uk } from './uk.ts';
 import type { Locale, Messages, PluralForms } from './types.ts';
@@ -42,4 +44,10 @@ export function saveLocale(storage: Storage, locale: Locale): void {
   } catch {
     // Not worth failing over.
   }
+}
+
+/** Why the hero picked a task: the temperament's own reason, or a plain one when the board had nothing in character. */
+export function questReason(e: { instinct: Instinct; quest: { kind: QuestKind } }, m: Messages): string {
+  const ideals = QUEST_IDEALS[e.instinct as keyof typeof QUEST_IDEALS];
+  return !ideals || ideals.includes(e.quest.kind) ? m.questReason[e.instinct] : m.questReasonPlain;
 }

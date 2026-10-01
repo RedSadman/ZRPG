@@ -516,7 +516,17 @@ function DreamPanel({ game, locale }: { game: GameState; locale: Locale }) {
         <dd>{life.contribution}</dd>
         <dt>{m.ui.pills}</dt>
         <dd>{life.pills.healing}</dd>
+        <dt>{m.ui.karma}</dt>
+        <dd>{life.karma}</dd>
+        <dt>{m.ui.reputation}</dt>
+        <dd>{life.reputation}</dd>
       </dl>
+      {life.quest && (
+        <p class="small">
+          <span class="muted">{m.ui.quest}: </span>
+          {m.questDesc(life.quest, ctx)}
+        </p>
+      )}
 
       <h3>{m.ui.techniques}</h3>
       <ul class="plain">

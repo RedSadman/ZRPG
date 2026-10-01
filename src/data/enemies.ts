@@ -15,6 +15,8 @@ export interface EnemyDef {
   boss?: true;
   /** Arrogant young masters and bullies: always worth a journal line. */
   rival?: true;
+  /** Servants of the Blood Moon Cult; the righteous fight them on sight. */
+  demonic?: true;
 }
 
 export const ENEMIES: Record<string, EnemyDef> = {
@@ -69,6 +71,18 @@ export const ENEMIES: Record<string, EnemyDef> = {
     itemChance: 0.4,
     technique: { k: 0.8, cost: 10 },
     rival: true,
+  },
+  bloodMoonCultist: {
+    kind: 'human',
+    hp: 1.1,
+    atk: 1.2,
+    agi: 1.0,
+    armor: 1.0,
+    trophy: 0,
+    stones: 12,
+    itemChance: 0.25,
+    technique: { k: 0.9, cost: 9 },
+    demonic: true,
   },
   /** The old man with the manual. Not as frail as he looks. */
   hermit: {

@@ -1,10 +1,13 @@
 import { CULTIVATION_TECHNIQUES } from '../data/techniques.ts';
 import { REALMS } from '../data/realms.ts';
 import { realmOf, stageOf } from '../engine/levels.ts';
+import { questReason } from './index.ts';
 import type { Messages, Noun, PluralForms } from './types.ts';
 import { enForks } from './en-forks.ts';
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** "a, b and c" */
+const joinList = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
 /** "a spirit boar", or just the name for proper nouns. */
 const a = (n: Noun) => (n.article ? `${n.article} ${n.nom}` : n.nom);
 /** "the spirit boar", or just the name for proper nouns. */
@@ -15,6 +18,11 @@ const STONES: PluralForms = { one: 'a spirit stone', other: '{n} spirit stones' 
 const POINTS: PluralForms = { one: 'a contribution point', other: '{n} contribution points' };
 const FOES: PluralForms = { one: 'one foe defeated', other: '{n} foes defeated' };
 const HERBS: PluralForms = { one: 'a bundle of spirit herbs', other: '{n} bundles of spirit herbs' };
+const ORE: PluralForms = { one: 'a chunk of spirit ore', other: '{n} chunks of spirit ore' };
+const CLASHES: PluralForms = { one: 'one clash', other: '{n} clashes' };
+/** "grey spirit wolf" → "grey spirit wolves", good enough for the beasts in this world. */
+const pluralNoun = (noun: string) =>
+  noun.endsWith('wolf') ? `${noun.slice(0, -1)}ves` : noun.endsWith('s') ? noun : `${noun}s`;
 
 const isCultivation = (key: string) => CULTIVATION_TECHNIQUES.some((t) => t.key === key);
 const realmName = (m: Messages, level: number) => m.realms[REALMS[realmOf(level)]!.key]!.nom;
@@ -60,6 +68,7 @@ export const en: Messages = {
     spiritSerpent: { nom: 'spirit serpent', article: 'a' },
     ironbackBear: { nom: 'ironback bear', article: 'an' },
     youngMaster: { nom: 'young master', article: 'a' },
+    bloodMoonCultist: { nom: 'Blood Moon cultist', article: 'a' },
     hermit: { nom: 'hermit', article: 'a' },
     shadowWolfKing: { nom: 'the Shadow Wolf King', article: '' },
   },
@@ -194,6 +203,7 @@ export const en: Messages = {
       returning: 'Heading back to the sect',
       meditate: 'Meditating',
       retired: 'Sect elder',
+      duty: 'On sect duty',
     },
     awake: 'Awake',
     journal: 'Dream journal',
@@ -242,13 +252,45 @@ export const en: Messages = {
     forkInstinct: (name) => `Then the instinct decides: ${name}`,
     waitForMe: 'Always wait for my choice',
     waitForMeHint: 'Forks never decide themselves',
+    karma: 'Karma',
+    reputation: 'Reputation',
+    quest: 'Task',
   },
   instincts: {
-    cautious: { name: 'Cautious', desc: 'Runs in time, lives long, grows slowly' },
-    bold: { name: 'Bold', desc: 'Picks fights with stronger foes and grows on danger' },
-    greedy: { name: 'Greedy', desc: 'Earns more stones and hates to spend them' },
-    righteous: { name: 'Righteous', desc: 'Helps the weak, and the sect values it more' },
+    cautious: { name: 'Cautious', desc: 'Avoids any fight it is not sure to win. Lives longer, but misses a lot' },
+    bold: { name: 'Bold', desc: 'Overrates itself and grabs every chance to grow stronger. Often dies young' },
+    greedy: { name: 'Greedy', desc: 'Takes only profitable work, hunts until the bag is full, hates to spend' },
+    righteous: { name: 'Righteous', desc: 'Helps people and the sect, hates demons, sometimes refuses unearned pay' },
   },
+  questDesc: (q, c) => {
+    switch (q.kind) {
+      case 'hunt':
+        return `hunting ${pluralNoun(c.enemy(q.enemy ?? 'spiritBoar').nom)}`;
+      case 'herbs':
+        return 'gathering spirit herbs';
+      case 'delivery':
+        return 'delivering a letter to a neighbouring sect';
+      case 'mining':
+        return 'mining spirit ore';
+      case 'sectDuty':
+        return 'duty at the sect';
+      case 'eliteBeast':
+        return 'tracking down a pack leader';
+      case 'escort':
+        return 'guarding a merchant caravan';
+      case 'defendVillage':
+        return 'defending a village from beasts';
+      case 'demonHunt':
+        return 'hunting Blood Moon cultists';
+    }
+  },
+  questReason: {
+    cautious: 'the safest',
+    bold: 'the one that would temper you most',
+    greedy: 'the best paid',
+    righteous: 'the one that helps people',
+  },
+  questReasonPlain: 'what was within reach',
   startPlaces: {
     azureCloudSect: { name: 'Azure Cloud Sect', desc: 'Your home sect', elder: 'An elder of the Azure Cloud Sect' },
     thousandPillValley: {
@@ -317,6 +359,8 @@ export const en: Messages = {
           return `${age} ${cap(the(foe))} left you to die in a ditch, but somehow you survived.`;
         case 'sensed':
           return `${age} You felt the pressure of a stranger's qi — ${a(foe)} (${c.level(e.enemyLevel)}) — and hid in time.`;
+        case 'ambushed':
+          return `${age} You tried to slip past ${the(foe)}, but it caught up with you. Somehow, you won.`;
       }
     },
     loot: (e, c) => {
@@ -331,9 +375,29 @@ export const en: Messages = {
       return `You are ${c.age(e.ageMonths)}. You won ${what} and ${verb}.`;
     },
     hunt: (e, c) => {
-      const parts = [e.kills > 0 ? c.plural(e.kills, FOES) : '', e.herbs > 0 ? c.plural(e.herbs, HERBS) : ''].filter(Boolean);
-      return `You are ${c.age(e.ageMonths)}. You spent ${c.plural(e.months, MONTHS)} ${c.m.zones[e.zone]!.in}: ${parts.join(' and ')}.`;
+      const parts = [
+        e.kills > 0 ? c.plural(e.kills, FOES) : '',
+        e.herbs > 0 ? c.plural(e.herbs, HERBS) : '',
+        e.ore ? c.plural(e.ore, ORE) : '',
+      ].filter(Boolean);
+      const dodged = e.avoided ? `${c.plural(e.avoided, CLASHES)} avoided` : '';
+      const what = [joinList(parts), dodged].filter(Boolean).join('; ');
+      return `You are ${c.age(e.ageMonths)}. You spent ${c.plural(e.months, MONTHS)} ${c.m.zones[e.zone]!.in}: ${what}.`;
     },
+    questTaken: (e, c) =>
+      `You are ${c.age(e.ageMonths)}. From the task board you took ${questReason(e, c.m)}: ${c.m.questDesc(e.quest, c)} (${c.plural(e.quest.stones, STONES)}, ${c.plural(e.quest.contribution, POINTS)}).`,
+    questDone: (e, c) => {
+      const age = `You are ${c.age(e.ageMonths)}.`;
+      const desc = c.m.questDesc(e.quest, c);
+      const bonus = e.item ? ` And on top of that: ${c.item(e.item, 'acc')}.` : '';
+      if (e.declined) {
+        return `${age} Task done: ${desc}. You refused the ${c.plural(e.quest.stones, STONES)} — “I have not earned it.” The sect still recorded ${c.plural(e.quest.contribution, POINTS)}.${bonus}`;
+      }
+      return `${age} Task done: ${desc}. The sect paid ${c.plural(e.quest.stones, STONES)} and ${c.plural(e.quest.contribution, POINTS)}.${bonus}`;
+    },
+    questFailed: (e, c) => `You are ${c.age(e.ageMonths)}. Task failed: ${c.m.questDesc(e.quest, c)}. Your standing in the sect slipped a little.`,
+    pillWait: (e, c) =>
+      `You are ${c.age(e.ageMonths)}. You are ready to break through to ${realmName(c.m, e.level)}, but you will not risk it without a pill.`,
     sect: (e, c) => {
       const age = `You are ${c.age(e.ageMonths)}.`;
       const reward = `earned ${c.plural(e.contribution, POINTS)} for a finished task`;
@@ -368,6 +432,7 @@ export const en: Messages = {
       switch (e.death.cause) {
         case 'killed': {
           const foe = c.enemy(e.death.enemy!, e.death.enemyName);
+          if (e.death.misjudged) return `${age} You were sure you could take ${the(foe)}. You were wrong.`;
           return c.vary(`${age} ${cap(the(foe))} proved stronger. You died.`, `${age} The last thing you saw was ${the(foe)}. You died.`);
         }
         case 'oldAge':

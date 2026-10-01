@@ -4,7 +4,7 @@ import { CHARGE_MAX, DEFAULT_PRIORITY } from '../engine/reality.ts';
 import type { GameState } from '../engine/types.ts';
 
 export const SAVE_KEY = 'zrpg.save';
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 6;
 
 export interface SaveFile {
   version: number;
@@ -61,6 +61,20 @@ const migrations: Record<number, (old: SaveFile) => SaveFile> = {
       waitForMe: false,
     });
     return { ...old, version: 4, state: s as GameState };
+  },
+  // v4 → v5: behaviour. Tasks come from a board now, so an old-style quest is dropped; karma and reputation start at zero.
+  4: (old) => {
+    const s = old.state as any;
+    Object.assign(s.life, { quest: null, karma: 0, reputation: 0, pillWaits: 0 });
+    s.life.trip.avoided = 0;
+    return { ...old, version: 5, state: s as GameState };
+  },
+  // v5 → v6: peaceful tasks and spirit ore.
+  5: (old) => {
+    const s = old.state as any;
+    if (s.life.quest) Object.assign(s.life.quest, { peaceful: false, inSect: false, ore: false });
+    s.life.trip.ore = 0;
+    return { ...old, version: 6, state: s as GameState };
   },
 };
 

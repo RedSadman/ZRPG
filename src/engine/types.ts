@@ -1,6 +1,7 @@
 // Everything here must stay plain JSON: the save file is this state, and a future server will replay it.
 
 import type { Instinct } from '../data/instincts.ts';
+import type { QuestFoes, QuestKind } from '../data/quests.ts';
 import type { PathKey } from '../data/paths.ts';
 import type { RootKey } from '../data/roots.ts';
 
@@ -91,12 +92,41 @@ export type RewardKind = Reward['kind'];
 export type Phase = 'dreaming' | 'choosing' | 'resting';
 
 /** `retired`: hit the current cultivation ceiling and lives out the dream as a sect elder. */
-export type Activity = 'sect' | 'travel' | 'hunt' | 'returning' | 'meditate' | 'retired';
+export type Activity = 'sect' | 'travel' | 'hunt' | 'returning' | 'meditate' | 'retired' | 'duty';
 
+/** A task taken from the sect's board; it shapes the next trip. */
 export interface Quest {
-  enemy: string;
-  needed: number;
-  killed: number;
+  kind: QuestKind;
+  /** For hunts: the beast or bandit to hunt. */
+  enemy?: string;
+  fights: number;
+  fightsLeft: number;
+  /** Months the task takes at least (gathering herbs, walking a caravan). */
+  monthsLeft: number;
+  offset: [number, number];
+  foes: QuestFoes;
+  elite: boolean;
+  /** No fights needed; the road may still bring some. */
+  peaceful: boolean;
+  /** Done inside the sect, no road at all. */
+  inSect: boolean;
+  /** Brings back spirit ore. */
+  ore: boolean;
+  stones: number;
+  contribution: number;
+  karma: number;
+  itemChance: number;
+  /** The trip for it has begun; a trip that ends without finishing it fails it. */
+  started: boolean;
+  failed: boolean;
+}
+
+/** The task as the journal tells it. */
+export interface QuestNote {
+  kind: QuestKind;
+  enemy?: string;
+  stones: number;
+  contribution: number;
 }
 
 export type DeathCause = 'killed' | 'oldAge' | 'deviation';
@@ -107,6 +137,8 @@ export interface Death {
   enemyLevel?: number;
   /** Surname of a rival cultivator (key into i18n surnames). */
   enemyName?: string;
+  /** The hero chose this fight, sure of winning, and was wrong. */
+  misjudged?: boolean;
 }
 
 /** One dreamed life. */
@@ -134,7 +166,7 @@ export interface Life {
   bossesKilled: string[];
   wallHit: boolean;
   /** Counters for the current hunting trip, flushed into one journal line on the way back. */
-  trip: { months: number; kills: number; herbs: number; bossTried: boolean; rivalNoted: boolean };
+  trip: { months: number; kills: number; herbs: number; ore: number; avoided: number; bossTried: boolean; rivalNoted: boolean };
   totals: { fights: number; wins: number; flees: number; kills: number };
   highlights: Array<{ priority: number; event: GameEvent }>;
   death: Death | null;
@@ -151,16 +183,26 @@ export interface Life {
   discoveries: string[];
   /** Knowledge already put to use in this dream. */
   remembered: string[];
+  /** Good and bad deeds; moves Luck. */
+  karma: number;
+  /** Standing in the sect; raises what tasks pay. */
+  reputation: number;
+  /** Times a breakthrough was put off to wait for a pill. */
+  pillWaits: number;
 }
 
-export type FightNote = 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed';
+export type FightNote = 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed' | 'ambushed';
 
 export type GameEvent =
   | { kind: 'dreamStart'; dream: number }
   | { kind: 'joinSect'; ageMonths: number; root: RootKey; path: PathKey; start?: string; instinct?: Instinct }
   | { kind: 'fight'; ageMonths: number; enemy: string; enemyLevel: number; note: FightNote; name?: string }
   | { kind: 'loot'; ageMonths: number; item: Item }
-  | { kind: 'hunt'; ageMonths: number; zone: string; months: number; kills: number; herbs: number }
+  | { kind: 'hunt'; ageMonths: number; zone: string; months: number; kills: number; herbs: number; ore?: number; avoided?: number }
+  | { kind: 'questTaken'; ageMonths: number; quest: QuestNote; instinct: Instinct }
+  | { kind: 'questDone'; ageMonths: number; quest: QuestNote; declined: boolean; item?: Item }
+  | { kind: 'questFailed'; ageMonths: number; quest: QuestNote }
+  | { kind: 'pillWait'; ageMonths: number; level: number }
   | { kind: 'sect'; ageMonths: number; sold: number; contribution: number }
   | { kind: 'technique'; ageMonths: number; technique: string }
   | { kind: 'stageUp'; ageMonths: number; level: number; months: number }

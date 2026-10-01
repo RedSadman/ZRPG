@@ -31,6 +31,19 @@ export function totalProgress(level: number, qi: number): number {
   return sum;
 }
 
+/**
+ * How much harder the attacker hits for standing realms above the defender (or softer, below).
+ * Every realm is a wall of ×1.5, except the first step out of mortality, which is ×1.25: early Qi Condensation is
+ * still close to a mortal body.
+ */
+export function realmEdge(attackerLevel: number, defenderLevel: number): number {
+  const a = realmOf(attackerLevel);
+  const d = realmOf(defenderLevel);
+  let factor = 1;
+  for (let r = Math.min(a, d); r < Math.max(a, d); r++) factor *= r === 0 ? 1.25 : 1.5;
+  return a >= d ? factor : 1 / factor;
+}
+
 export function lifespanMonths(level: number): number {
   return REALMS[realmOf(level)]!.lifespanYears * 12;
 }

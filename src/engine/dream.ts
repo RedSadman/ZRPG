@@ -8,13 +8,15 @@ import { RIVAL_SURNAMES } from '../data/rivals.ts';
 import { TALENT_EFFECTS } from '../data/talents.ts';
 import { COMBAT_TECHNIQUES, CULTIVATION_TECHNIQUES, LIBRARY, MAX_COMBAT_TECHNIQUES } from '../data/techniques.ts';
 import { zoneFor, type ZoneDef } from '../data/zones.ts';
+import { ELITE_ATK, ELITE_HP, chooseQuest, postBoard, questFoe, questNote } from './board.ts';
 import { enemyCombatant, fight, heroCombatant } from './combat.ts';
 import { maybeFork } from './forks.ts';
 import { bagCapacity, bagCount, cultivationRate, effectiveStats, growStats, hasTalent, maxHp } from './hero.ts';
+import { estimateWin, perceivedWin } from './judgement.ts';
 import { isRealmGate, lifespanMonths, qiToReach, realmOf, stageOf, totalProgress } from './levels.ts';
 import { itemPower, makeItem, rollRank, sellValue, starterItem, takeItem } from './loot.ts';
 import { between, chance, nextInt, pick, pickWeighted, type Rng } from './rng.ts';
-import type { Activity, DeathCause, DreamSetup, GameEvent, GameState, Hero, Life, Slot } from './types.ts';
+import type { Activity, DeathCause, DreamSetup, GameEvent, GameState, Hero, Life, Quest, Slot } from './types.ts';
 
 export const START_AGE_MONTHS = 16 * 12;
 
@@ -22,9 +24,17 @@ export const START_AGE_MONTHS = 16 * 12;
 export type Emit = (event: GameEvent, priority?: number) => void;
 
 // Tuning knobs for a dreamed month.
-const ENCOUNTER_CHANCE = 0.75;
+const ENCOUNTER_CHANCE = 0.6;
+/** On peaceful work the hero is not looking for trouble and meets less of it. */
+const PEACEFUL_ENCOUNTER_CHANCE = 0.3;
+/** Chance per month in the mine to bring out a chunk of spirit ore. */
+const ORE_CHANCE = 0.6;
+/** Qi gathered on sect duty, as a share of a meditation month. */
+const DUTY_QI_SHARE = 0.3;
 const TRAVEL_ENCOUNTER_CHANCE = 0.15;
 const HUNT_REGEN = 0.1;
+/** Share of a meditation month's qi gathered during a month on the road. */
+const HUNT_QI_SHARE = 0.25;
 const MAX_MEDITATION_MONTHS = 36;
 /**
  * Encounters are drawn around the hero's level with a long tail upwards, and nothing caps them at the realm's
@@ -43,8 +53,10 @@ const LEVEL_OFFSETS = [
 ];
 /** Share of the next level's qi gained per level of difference when beating a stronger foe. */
 const BATTLE_INSIGHT = 0.06;
-/** A foe this many levels above, or from a higher realm, can be sensed and avoided. */
-const SENSE_GAP = 3;
+/** In a task's fights the hero accepts odds this much worse than usual. */
+const QUEST_RESOLVE = 0.5;
+/** A breakthrough is put off for a pill at most this many times. */
+const MAX_PILL_WAITS = 6;
 const ARMORY_SLOTS: Slot[] = ['weapon', 'robe', 'bracers', 'boots'];
 /** The armory does not always have what you need. */
 const ARMORY_STOCK_CHANCE = 0.6;
@@ -82,7 +94,7 @@ export function newLife(hero: Hero, n: number, setup: DreamSetup = defaultSetup(
     injuryMonths: 0,
     bossesKilled: [],
     wallHit: false,
-    trip: { months: 0, kills: 0, herbs: 0, bossTried: false, rivalNoted: false },
+    trip: { months: 0, kills: 0, herbs: 0, ore: 0, avoided: 0, bossTried: false, rivalNoted: false },
     totals: { fights: 0, wins: 0, flees: 0, kills: 0 },
     highlights: [],
     death: null,
@@ -95,6 +107,9 @@ export function newLife(hero: Hero, n: number, setup: DreamSetup = defaultSetup(
     fork: null,
     discoveries: [],
     remembered: [],
+    karma: 0,
+    reputation: 0,
+    pillWaits: 0,
   };
   life.hp = maxHp(life);
   return life;
@@ -157,6 +172,21 @@ export function liveMonth(s: GameState, rng: Rng, emit: Emit): void {
       return meditateMonth(s, rng, emit);
     case 'retired':
       return;
+    case 'duty':
+      return dutyMonth(s);
+  }
+}
+
+/** Sect duty: chores, scriptures, guard posts. Safe, dull, and the sect remembers it. */
+function dutyMonth(s: GameState): void {
+  const { hero, life } = s;
+  life.hp = maxHp(life);
+  life.qi = Math.min(qiToReach(life.level + 1), life.qi + qiPerMonth(hero, life) * DUTY_QI_SHARE);
+  const quest = life.quest;
+  if (quest) quest.monthsLeft -= 1;
+  if (!quest || quest.monthsLeft <= 0) {
+    life.plan = 'meditate';
+    go(life, 'sect');
   }
 }
 
@@ -165,8 +195,18 @@ export function go(life: Life, activity: Activity): void {
   life.monthsInActivity = 0;
 }
 
-export function die(life: Life, emit: Emit, cause: DeathCause, enemy?: string, enemyLevel?: number, enemyName?: string): void {
-  life.death = enemy ? { cause, enemy, enemyLevel: enemyLevel ?? 0, ...(enemyName ? { enemyName } : {}) } : { cause };
+export function die(
+  life: Life,
+  emit: Emit,
+  cause: DeathCause,
+  enemy?: string,
+  enemyLevel?: number,
+  enemyName?: string,
+  misjudged = false,
+): void {
+  life.death = enemy
+    ? { cause, enemy, enemyLevel: enemyLevel ?? 0, ...(enemyName ? { enemyName } : {}), ...(misjudged ? { misjudged } : {}) }
+    : { cause };
   emit({ kind: 'death', ageMonths: life.ageMonths, death: life.death }, 10);
 }
 
@@ -175,22 +215,14 @@ export function die(life: Life, emit: Emit, cause: DeathCause, enemy?: string, e
 function sectMonth(s: GameState, rng: Rng, emit: Emit): void {
   const { life } = s;
   const place = startPlace(life.start);
-  const instinct = INSTINCTS[life.instinct];
   life.hp = maxHp(life);
 
   const sold = Math.round(life.bag.trophyValue) + life.bag.items.reduce((sum, i) => sum + sellValue(i), 0);
   life.stones += sold;
   life.bag = { trophyValue: 0, trophies: 0, items: [] };
+  if (sold > 0) emit({ kind: 'sect', ageMonths: life.ageMonths, sold, contribution: 0 }, 1);
 
-  let contribution = 0;
-  if (life.quest && life.quest.killed >= life.quest.needed) {
-    contribution = Math.round((10 + 2 * life.level) * instinct.contributionMult);
-    life.contribution += contribution;
-    life.stones += 3 + life.level;
-    life.quest = null;
-  }
-  if (sold > 0 || contribution > 0) emit({ kind: 'sect', ageMonths: life.ageMonths, sold, contribution }, 1);
-
+  settleQuest(s, rng, emit);
   learnInLibrary(life, emit);
   visitArmory(s, rng);
 
@@ -211,11 +243,45 @@ function sectMonth(s: GameState, rng: Rng, emit: Emit): void {
     }
   }
 
-  if (!life.quest) life.quest = newQuest(rng, zoneFor(life.level));
+  if (!life.quest) {
+    life.quest = chooseQuest(postBoard(life, rng), life, rng);
+    emit({ kind: 'questTaken', ageMonths: life.ageMonths, quest: questNote(life.quest), instinct: life.instinct }, 1);
+  }
 
   const canCultivate = life.level < MAX_LEVEL || !life.wallHit;
   if (life.plan === 'meditate' && canCultivate) go(life, 'meditate');
-  else go(life, 'travel');
+  else {
+    if (life.quest) life.quest.started = true;
+    go(life, life.quest?.inSect ? 'duty' : 'travel');
+  }
+}
+
+/** Pays out a finished task, or writes off one that the last trip failed. */
+function settleQuest(s: GameState, rng: Rng, emit: Emit): void {
+  const { life } = s;
+  const quest = life.quest;
+  if (!quest || !quest.started) return;
+  const done = !quest.failed && quest.fightsLeft === 0 && quest.monthsLeft <= 0;
+  life.quest = null;
+  if (!done) {
+    life.reputation -= 1;
+    emit({ kind: 'questFailed', ageMonths: life.ageMonths, quest: questNote(quest) }, 2);
+    return;
+  }
+  // The righteous sometimes refuse money they feel they have not earned; heaven notices.
+  const declined = quest.stones > 0 && chance(rng, INSTINCTS[life.instinct].declineChance);
+  if (declined) life.karma += 2;
+  else life.stones += quest.stones;
+  life.contribution += quest.contribution;
+  life.karma += quest.karma;
+  life.reputation += quest.elite || quest.foes === 'demons' ? 2 : 1;
+  let item;
+  if (chance(rng, quest.itemChance)) {
+    item = makeItem(rng, life.level, rollRank(rng, effectiveStats(life).luck, 1), life.path);
+    takeItem(life, item, life.path);
+  }
+  const priority = 2 + (item ? 2 : 0) + (declined ? 3 : 0);
+  emit({ kind: 'questDone', ageMonths: life.ageMonths, quest: questNote(quest), declined, ...(item ? { item } : {}) }, priority);
 }
 
 function learnInLibrary(life: Life, emit: Emit): void {
@@ -268,10 +334,6 @@ function visitArmory(s: GameState, rng: Rng): void {
   }
 }
 
-function newQuest(rng: Rng, zone: ZoneDef) {
-  return { enemy: pickWeighted(rng, zone.enemies).key, needed: nextInt(rng, 3, 6), killed: 0 };
-}
-
 // --- Travel and hunting -----------------------------------------------------
 
 function travelMonth(s: GameState, rng: Rng, emit: Emit): void {
@@ -288,41 +350,84 @@ function travelMonth(s: GameState, rng: Rng, emit: Emit): void {
 function huntMonth(s: GameState, rng: Rng, emit: Emit): void {
   const { hero, life } = s;
   const zone = zoneFor(life.level);
-  const instinct = INSTINCTS[life.instinct];
+  const ins = INSTINCTS[life.instinct];
+  const quest = life.quest;
   life.trip.months += 1;
   const hpMax = maxHp(life);
   life.hp = Math.min(hpMax, life.hp + hpMax * HUNT_REGEN);
-  life.qi = Math.min(qiToReach(life.level + 1), life.qi + qiPerMonth(hero, life) * instinct.huntQiShare);
+  life.qi = Math.min(qiToReach(life.level + 1), life.qi + qiPerMonth(hero, life) * HUNT_QI_SHARE);
+  if (quest && !quest.failed) quest.monthsLeft -= 1;
 
   if (rememberOldZhangCave(s, zone, emit)) return;
   if (maybeFork(s, rng, emit)) return;
 
-  const herbChance = PATHS[life.path].herbChance + startPlace(life.start).herbBonus;
+  const herbChance = (PATHS[life.path].herbChance + startPlace(life.start).herbBonus) * (quest?.kind === 'herbs' ? 2 : 1);
   if (chance(rng, herbChance) && bagCount(life) < bagCapacity(life)) {
     life.bag.trophyValue += zone.herbValue * (1 + 0.1 * life.level);
     life.bag.trophies += 1;
     life.trip.herbs += 1;
   }
 
-  const bossDue = zone.boss !== '' && stageOf(life.level) === 9 && !life.bossesKilled.includes(zone.boss) && !life.trip.bossTried;
-  if (bossDue && life.monthsInActivity >= 2) {
+  if (bossIsDue(s, zone, rng)) {
     life.trip.bossTried = true;
-    encounter(s, rng, emit, zone.boss, life.level, { avoidable: false });
-  } else if (chance(rng, ENCOUNTER_CHANCE)) {
+    encounter(s, rng, emit, zone.boss, life.level, { committed: true });
+  } else if (quest && !quest.failed && quest.fightsLeft > 0 && chance(rng, quest.fightsLeft / Math.max(1, quest.monthsLeft + 1))) {
+    questFight(s, rng, emit, quest);
+  } else if (chance(rng, quest?.peaceful ? PEACEFUL_ENCOUNTER_CHANCE : ENCOUNTER_CHANCE)) {
     encounter(s, rng, emit, pickWeighted(rng, zone.enemies).key, rollEnemyLevel(rng, life.level, zone));
   }
   if (life.death || life.activity !== 'hunt') return;
 
-  const questDone = life.quest !== null && life.quest.killed >= life.quest.needed;
-  const exhausted = life.hp < maxHp(life) * instinct.returnAtHp && life.pills.healing === 0;
+  if (quest?.ore && quest.monthsLeft >= 0 && chance(rng, ORE_CHANCE) && bagCount(life) < bagCapacity(life)) {
+    life.bag.trophyValue += zone.herbValue * 1.5 * (1 + 0.1 * life.level);
+    life.bag.trophies += 1;
+    life.trip.ore += 1;
+  }
+
+  const questDone = quest !== null && quest.fightsLeft === 0 && quest.monthsLeft <= 0;
+  const bagFull = bagCount(life) >= bagCapacity(life);
+  const exhausted = life.hp < maxHp(life) * ins.returnAtHp && life.pills.healing === 0;
+  // A greedy dreamer does not go home with a half-empty bag.
+  const keepFilling = ins.fillsBag && !bagFull;
   if (
-    bagCount(life) >= bagCapacity(life) ||
-    (questDone && life.monthsInActivity >= 3) ||
+    quest?.failed ||
+    bagFull ||
     exhausted ||
-    life.monthsInActivity >= instinct.maxHuntMonths
+    (questDone && !keepFilling) ||
+    life.monthsInActivity >= ins.maxHuntMonths
   ) {
     go(life, 'returning');
   }
+}
+
+/** The zone's boss is hunted once the instinct feels ready, and only if the hero believes in the win. */
+function bossIsDue(s: GameState, zone: ZoneDef, rng: Rng): boolean {
+  const { life } = s;
+  const ins = INSTINCTS[life.instinct];
+  if (zone.boss === '' || life.bossesKilled.includes(zone.boss) || life.trip.bossTried || life.monthsInActivity < 2) {
+    return false;
+  }
+  if (realmOf(life.level) === 0 || stageOf(life.level) < ins.bossFromStage) return false;
+  const p = perceivedWin(life, heroCombatant(life, zone.boss), enemyCombatant(ENEMIES[zone.boss]!, life.level), rng);
+  if (p >= ins.engageAt) return true;
+  life.trip.bossTried = true;
+  return false;
+}
+
+function questFight(s: GameState, rng: Rng, emit: Emit, quest: Quest): void {
+  const { life } = s;
+  const key = questFoe(quest, life, rng);
+  const level = questFoeLevel(quest, life, rng);
+  const result = encounter(s, rng, emit, key, level, { resolve: QUEST_RESOLVE, elite: quest.elite });
+  if (result === 'won') quest.fightsLeft -= 1;
+  else if (result !== 'lost' && result !== 'avoided') quest.failed = true;
+}
+
+/** Places with a settled population (the village woods) send the same foes whatever the task says. */
+export function questFoeLevel(quest: Quest, life: Life, rng: Rng): number {
+  const zone = zoneFor(life.level);
+  if (zone.levels) return pickWeighted(rng, zone.levels).level;
+  return Math.max(0, life.level + nextInt(rng, quest.offset[0], quest.offset[1]));
 }
 
 /** The cave from an earlier dream is still there: the old man's manual lies where you left it. */
@@ -346,11 +451,23 @@ function rememberOldZhangCave(s: GameState, zone: ZoneDef, emit: Emit): boolean 
 
 function returningMonth(s: GameState, emit: Emit): void {
   const life = s.life;
-  const { kills, herbs } = life.trip;
-  if (kills + herbs > 0) {
-    emit({ kind: 'hunt', ageMonths: life.ageMonths, zone: zoneFor(life.level).key, months: life.trip.months, kills, herbs }, 1);
+  const { kills, herbs, ore, avoided } = life.trip;
+  if (kills + herbs + ore + avoided > 0) {
+    emit(
+      {
+        kind: 'hunt',
+        ageMonths: life.ageMonths,
+        zone: zoneFor(life.level).key,
+        months: life.trip.months,
+        kills,
+        herbs,
+        ...(ore ? { ore } : {}),
+        ...(avoided ? { avoided } : {}),
+      },
+      1,
+    );
   }
-  life.trip = { months: 0, kills: 0, herbs: 0, bossTried: false, rivalNoted: false };
+  life.trip = { months: 0, kills: 0, herbs: 0, ore: 0, avoided: 0, bossTried: false, rivalNoted: false };
   life.plan = 'meditate';
   go(life, 'sect');
 }
@@ -361,17 +478,21 @@ export function rollEnemyLevel(rng: Rng, heroLevel: number, zone: ZoneDef): numb
 }
 
 export interface EncounterOptions {
-  /** A foe the hero went looking for (boss, duel) cannot be slipped away from. */
-  avoidable?: boolean;
+  /** The hero went looking for this fight (a boss, a duel) and does not slip away from it. */
+  committed?: boolean;
+  /** Scales how sure the hero must be: a task taken on makes them accept worse odds, but not hopeless ones. */
+  resolve?: number;
   /** A duel: losing leaves you beaten, not dead. */
   lethal?: boolean;
   /** Start the fight with this share of the foe's HP (tired cultivators leaving a secret realm). */
   foeHp?: number;
+  /** A tougher than usual foe of its kind. */
+  elite?: boolean;
   /** Fork fights are narrated by the fork itself. */
   quiet?: boolean;
 }
 
-export type EncounterResult = 'won' | 'fled' | 'sensed' | 'rescued' | 'lost' | 'beaten';
+export type EncounterResult = 'won' | 'fled' | 'avoided' | 'rescued' | 'lost' | 'beaten';
 
 export function encounter(
   s: GameState,
@@ -383,27 +504,41 @@ export function encounter(
 ): EncounterResult {
   const { life } = s;
   const def = ENEMIES[enemyKey]!;
+  const ins = INSTINCTS[life.instinct];
   const name = def.rival ? pick(rng, RIVAL_SURNAMES) : undefined;
-  const note = (n: 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed', priority: number) => {
+  const note = (n: 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed' | 'ambushed', priority: number) => {
     if (opts.quiet) return;
     emit({ kind: 'fight', ageMonths: life.ageMonths, enemy: enemyKey, enemyLevel: level, note: n, ...(name ? { name } : {}) }, priority);
   };
 
-  // Sensing the pressure of a far stronger qi, a wary cultivator can slip away before it starts.
-  const overwhelming = level >= life.level + SENSE_GAP || realmOf(level) > realmOf(life.level);
-  if ((opts.avoidable ?? true) && overwhelming) {
-    const p = 0.35 + 0.02 * effectiveStats(life).mind + INSTINCTS[life.instinct].sense;
-    if (chance(rng, Math.min(0.9, Math.max(0.05, p)))) {
-      note('sensed', realmOf(level) > realmOf(life.level) ? 5 : 2);
-      return 'sensed';
-    }
-  }
-
   const me = heroCombatant(life, enemyKey);
   const foe = enemyCombatant(def, level);
+  if (opts.elite) {
+    foe.hp = foe.maxHp = Math.round(foe.maxHp * ELITE_HP);
+    foe.weapon *= ELITE_ATK;
+  }
   if (opts.foeHp !== undefined) foe.hp = Math.round(foe.maxHp * opts.foeHp);
-  const r = fight(me, foe, life.pills.healing, effectiveStats(life).luck, rng);
+  const odds = estimateWin(me, foe, life.pills.healing);
 
+  // Sizing the foe up: fight, or try to slip away. The instinct decides how sure the hero must be, and how well
+  // they read the odds in the first place.
+  let ambushed = false;
+  let chose = false;
+  if (!opts.committed) {
+    const wanted =
+      (def.demonic ? ins.engageDemonAt : ins.engageAt - (def.stones > 0 ? ins.lootLust : 0)) * (opts.resolve ?? 1);
+    if (perceivedWin(life, me, foe, rng) < wanted) {
+      const slip = 0.55 + 0.02 * (me.agi - foe.agi) + 0.01 * effectiveStats(life).mind;
+      if (chance(rng, Math.min(0.95, Math.max(0.15, slip)))) {
+        if (odds < 0.5) note('sensed', realmOf(level) > realmOf(life.level) ? 5 : 3);
+        else life.trip.avoided += 1;
+        return 'avoided';
+      }
+      ambushed = true;
+    } else chose = true;
+  }
+
+  const r = fight(me, foe, life.pills.healing, effectiveStats(life).luck, rng);
   life.hp = r.heroHp;
   life.pills.healing -= r.pillsUsed;
   for (const t of life.techniques) t.uses += r.techniqueUses[t.key] ?? 0;
@@ -416,7 +551,7 @@ export function encounter(
         life.injuryMonths = Math.max(life.injuryMonths, 6);
         return 'beaten';
       }
-      die(life, emit, 'killed', enemyKey, level, name);
+      die(life, emit, 'killed', enemyKey, level, name, chose && odds < 0.4);
       return 'lost';
     case 'fled':
       life.totals.flees += 1;
@@ -433,24 +568,25 @@ export function encounter(
   life.totals.wins += 1;
   life.totals.kills += 1;
   life.trip.kills += 1;
+  if (def.demonic) life.karma += 1;
   if (level > life.level) {
     // Insight from beating someone stronger: the bold grow on danger.
     const need = qiToReach(life.level + 1);
     life.qi = Math.min(need, life.qi + need * BATTLE_INSIGHT * (level - life.level));
   }
-  if (life.quest?.enemy === enemyKey) life.quest.killed += 1;
 
   if (def.boss) {
     life.bossesKilled.push(enemyKey);
     note('boss', 8);
-  } else if (def.rival && !life.trip.rivalNoted) {
+  } else if (ambushed && odds < 0.5) note('ambushed', 4);
+  else if (def.rival && !life.trip.rivalNoted) {
     // One arrogant young master per trip is a story; five is a chore.
     life.trip.rivalNoted = true;
     note('rival', 5);
   } else if (r.closeCall) note('closeCall', 4);
   else if (level >= life.level + 3) note('stronger', 3);
 
-  const value = (hasTalent(life.talents, 'goldenTouch') ? TALENT_EFFECTS.goldenTouchValue : 1) * INSTINCTS[life.instinct].stonesMult;
+  const value = hasTalent(life.talents, 'goldenTouch') ? TALENT_EFFECTS.goldenTouchValue : 1;
   if (def.trophy > 0 && bagCount(life) < bagCapacity(life)) {
     life.bag.trophyValue += def.trophy * (1 + 0.15 * level) * value;
     life.bag.trophies += 1;
@@ -495,8 +631,9 @@ function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
     emit({ kind: 'remembered', ageMonths: life.ageMonths, knowledge: 'hiddenSpring' }, 3);
   }
 
-  life.qi += qiPerMonth(hero, life);
-  if (life.qi < qiToReach(next)) {
+  const need = qiToReach(next);
+  life.qi = Math.min(need, life.qi + qiPerMonth(hero, life));
+  if (life.qi < need) {
     if (life.monthsInActivity >= MAX_MEDITATION_MONTHS) {
       life.plan = 'hunt';
       go(life, 'sect');
@@ -504,8 +641,19 @@ function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
     return;
   }
 
-  if (isRealmGate(next)) attemptBreakthrough(s, rng, emit);
-  else {
+  if (isRealmGate(next)) {
+    // The cautious will not knock on a realm's gate without a pill in hand, for a while at least.
+    const pill = BREAKTHROUGH_PILLS[next];
+    const waiting =
+      INSTINCTS[life.instinct].waitsForPill && pill && life.pills.breakthrough !== pill.key && life.pillWaits < MAX_PILL_WAITS;
+    if (waiting) {
+      if (life.pillWaits === 0) emit({ kind: 'pillWait', ageMonths: life.ageMonths, level: next }, 2);
+      life.pillWaits += 1;
+    } else {
+      life.pillWaits = 0;
+      attemptBreakthrough(s, rng, emit);
+    }
+  } else {
     life.level = next;
     life.qi = 0;
     growStats(life.path, life.stats, 2, rng);

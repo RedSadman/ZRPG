@@ -140,7 +140,9 @@ function applyBeat(s: GameState, rng: Rng): void {
         return;
       }
       const before = s.nextEntryId;
-      for (let m = 0; m < MAX_QUIET_MONTHS && s.nextEntryId === before && s.phase === 'dreaming' && !s.life.fork; m++) {
+      for (let m = 0; s.nextEntryId === before && s.phase === 'dreaming' && !s.life.fork; m++) {
+        // A retired elder's last decades pass in one beat; anything else stops after a long silence.
+        if (m >= MAX_QUIET_MONTHS && s.life.activity !== 'retired') break;
         applyMonth(s, rng);
       }
       return;

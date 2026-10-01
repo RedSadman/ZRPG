@@ -1,10 +1,13 @@
 import { REALMS } from '../data/realms.ts';
 import { CULTIVATION_TECHNIQUES } from '../data/techniques.ts';
 import { realmOf, stageOf } from '../engine/levels.ts';
+import { questReason } from './index.ts';
 import type { Messages, Noun, PluralForms } from './types.ts';
 import { ukForks } from './uk-forks.ts';
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** "a, b і c" */
+const joinList = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} і ${xs.at(-1)}`);
 
 const MONTHS: PluralForms = { one: '{n} місяць', few: '{n} місяці', many: '{n} місяців', other: '{n} місяця' };
 const MONTHS_GEN: PluralForms = { one: '{n} місяця', few: '{n} місяців', many: '{n} місяців', other: '{n} місяця' };
@@ -27,6 +30,21 @@ const HERBS: PluralForms = {
   many: '{n} пучків духовних трав',
   other: '{n} пучка духовних трав',
 };
+/** After "від": "від 54 духовних каменів". */
+const STONES_GEN: PluralForms = {
+  one: '{n} духовного каменя',
+  few: '{n} духовних каменів',
+  many: '{n} духовних каменів',
+  other: '{n} духовного каменя',
+};
+const ORE: PluralForms = {
+  one: '{n} шматок духовної руди',
+  few: '{n} шматки духовної руди',
+  many: '{n} шматків духовної руди',
+  other: '{n} шматка духовної руди',
+};
+/** After "від": "від 3 сутичок". */
+const CLASHES: PluralForms = { one: '{n} сутички', few: '{n} сутичок', many: '{n} сутичок', other: '{n} сутички' };
 
 /** "простий меч", "проста шабля", "прості чоботи" — the adjective agrees with the base noun. */
 const PLAIN: Record<NonNullable<Noun['gender']>, { nom: string; acc: string }> = {
@@ -109,6 +127,13 @@ export const uk: Messages = {
       gender: 'm',
     },
     youngMaster: { nom: 'молодий майстер', gen: 'молодого майстра', acc: 'молодого майстра', ins: 'молодим майстром', gender: 'm' },
+    bloodMoonCultist: {
+      nom: 'культист Кривавого Місяця',
+      gen: 'культиста Кривавого Місяця',
+      acc: 'культиста Кривавого Місяця',
+      ins: 'культистом Кривавого Місяця',
+      gender: 'm',
+    },
     hermit: {
       nom: 'старець-відлюдник',
       gen: 'старця-відлюдника',
@@ -262,6 +287,7 @@ export const uk: Messages = {
       returning: 'Повертається до секти',
       meditate: 'Медитує',
       retired: 'Старійшина секти',
+      duty: 'На чергуванні в секті',
     },
     awake: 'Прокинувся',
     journal: 'Журнал сну',
@@ -310,13 +336,54 @@ export const uk: Messages = {
     forkInstinct: (name) => `Потім вирішить інстинкт: ${name}`,
     waitForMe: 'Завжди чекати на мій вибір',
     waitForMeHint: 'Розвилки не вирішуються самі',
+    karma: 'Карма',
+    reputation: 'Репутація',
+    quest: 'Завдання',
   },
   instincts: {
-    cautious: { name: 'Обережний', desc: 'Тікає вчасно, живе довго, росте повільно' },
-    bold: { name: 'Зухвалий', desc: 'Лізе в бій із сильнішими й росте на небезпеці' },
-    greedy: { name: 'Жадібний', desc: 'Заробляє більше каменів і не любить витрачатися' },
-    righteous: { name: 'Праведний', desc: 'Допомагає слабким, і секта цінує його більше' },
+    cautious: {
+      name: 'Обережний',
+      desc: 'Не лізе в бій, у перемозі якого не певен. Живе довше, але багато чого не бачить',
+    },
+    bold: {
+      name: 'Зухвалий',
+      desc: 'Переоцінює себе й хапається за кожну нагоду стати сильнішим. Часто гине молодим',
+    },
+    greedy: { name: 'Жадібний', desc: 'Береться лише за вигідне, полює до повної сумки й не любить витрачатися' },
+    righteous: {
+      name: 'Праведний',
+      desc: 'Допомагає людям і секті, ненавидить демонів, іноді відмовляється від незаслуженої плати',
+    },
   },
+  questDesc: (q, c) => {
+    switch (q.kind) {
+      case 'hunt':
+        return `полювання на ${c.enemy(q.enemy ?? 'spiritBoar').acc}`;
+      case 'herbs':
+        return 'збір духовних трав';
+      case 'delivery':
+        return 'доставка листа до сусідньої секти';
+      case 'mining':
+        return 'видобуток духовної руди';
+      case 'sectDuty':
+        return 'чергування в секті';
+      case 'eliteBeast':
+        return 'вистежити звіра-ватажка';
+      case 'escort':
+        return 'супровід торгового каравану';
+      case 'defendVillage':
+        return 'захист села від звірів';
+      case 'demonHunt':
+        return 'полювання на культистів Кривавого Місяця';
+    }
+  },
+  questReason: {
+    cautious: 'найбезпечніше',
+    bold: 'те, що загартує найбільше',
+    greedy: 'найвигідніше',
+    righteous: 'те, що допоможе людям',
+  },
+  questReasonPlain: 'те, що було під силу',
   startPlaces: {
     azureCloudSect: { name: 'Секта Лазурової Хмари', desc: 'Рідна секта', elder: 'Старійшина секти Лазурової Хмари' },
     thousandPillValley: {
@@ -386,6 +453,8 @@ export const uk: Messages = {
           return `${age} ${cap(foe.nom)} ${c.eg(e.enemy, 'залишив', 'залишила')} тебе помирати в канаві, але ти якимось дивом ${c.g('вижив', 'вижила')}.`;
         case 'sensed':
           return `${age} Ти ${c.g('відчув', 'відчула')} тиск чужої ці — ${foe.nom} (${c.level(e.enemyLevel)}) — і вчасно ${c.g('сховався', 'сховалася')}.`;
+        case 'ambushed':
+          return `${age} Ти ${c.g('намагався', 'намагалася')} обійти ${foe.acc}, але ${c.eg(e.enemy, 'він', 'вона')} тебе ${c.eg(e.enemy, 'наздогнав', 'наздогнала')}. Якимось дивом ти ${c.g('переміг', 'перемогла')}.`;
       }
     },
     loot: (e, c) => {
@@ -400,9 +469,30 @@ export const uk: Messages = {
       return `Тобі ${c.age(e.ageMonths)}. Ти ${c.g('здобув', 'здобула')} ${name} ${rank} і ${wear}.`;
     },
     hunt: (e, c) => {
-      const parts = [e.kills > 0 ? c.plural(e.kills, FOES) : '', e.herbs > 0 ? c.plural(e.herbs, HERBS) : ''].filter(Boolean);
-      return `Тобі ${c.age(e.ageMonths)}. Ти ${c.g('провів', 'провела')} ${c.plural(e.months, MONTHS)} ${c.m.zones[e.zone]!.in}: ${parts.join(' і ')}.`;
+      const parts = [
+        e.kills > 0 ? c.plural(e.kills, FOES) : '',
+        e.herbs > 0 ? c.plural(e.herbs, HERBS) : '',
+        e.ore ? c.plural(e.ore, ORE) : '',
+      ].filter(Boolean);
+      const dodged = e.avoided ? `від ${c.plural(e.avoided, CLASHES)} ти ${c.g('ухилився', 'ухилилася')}` : '';
+      const what = parts.length && dodged ? `${joinList(parts)}, а ${dodged}` : joinList(parts) || dodged;
+      return `Тобі ${c.age(e.ageMonths)}. Ти ${c.g('провів', 'провела')} ${c.plural(e.months, MONTHS)} ${c.m.zones[e.zone]!.in}: ${what}.`;
     },
+    questTaken: (e, c) =>
+      `Тобі ${c.age(e.ageMonths)}. З дошки завдань ти ${c.g('обрав', 'обрала')} ${questReason(e, c.m)}: ${c.m.questDesc(e.quest, c)} (${c.plural(e.quest.stones, STONES)}, ${c.plural(e.quest.contribution, POINTS)}).`,
+    questDone: (e, c) => {
+      const age = `Тобі ${c.age(e.ageMonths)}.`;
+      const desc = c.m.questDesc(e.quest, c);
+      const bonus = e.item ? ` На додачу — ${c.item(e.item, 'acc')} ${c.m.rankOf[e.item.rank]}.` : '';
+      if (e.declined) {
+        return `${age} Завдання виконано: ${desc}. Від ${c.plural(e.quest.stones, STONES_GEN)} ти ${c.g('відмовився', 'відмовилася')}: «Я цього не ${c.g('заслужив', 'заслужила')}». Секта записала тобі ${c.plural(e.quest.contribution, POINTS)}.${bonus}`;
+      }
+      return `${age} Завдання виконано: ${desc}. Секта заплатила ${c.plural(e.quest.stones, STONES)} і ${c.plural(e.quest.contribution, POINTS)}.${bonus}`;
+    },
+    questFailed: (e, c) =>
+      `Тобі ${c.age(e.ageMonths)}. Завдання провалено: ${c.m.questDesc(e.quest, c)}. Репутація в секті трохи похитнулася.`,
+    pillWait: (e, c) =>
+      `Тобі ${c.age(e.ageMonths)}. Ти ${c.g('готовий', 'готова')} до прориву до ${c.m.realms[realmKey(e.level)]!.gen}, але без пілюлі ризикувати не ${c.g('став', 'стала')}.`,
     sect: (e, c) => {
       const age = `Тобі ${c.age(e.ageMonths)}.`;
       const reward = `${c.g('отримав', 'отримала')} ${c.plural(e.contribution, POINTS)} за виконане завдання`;
@@ -440,6 +530,9 @@ export const uk: Messages = {
         case 'killed': {
           const key = e.death.enemy!;
           const foe = c.enemy(key, e.death.enemyName);
+          if (e.death.misjudged) {
+            return `${age} Ти ${c.g('був певен', 'була певна')}, що впораєшся з ${foe.ins}. Ти ${c.g('помилився', 'помилилася')}.`;
+          }
           return c.vary(
             `${age} ${cap(foe.nom)} ${c.eg(key, 'виявився сильнішим', 'виявилася сильнішою')}. Ти ${c.g('загинув', 'загинула')}.`,
             `${age} Останнє, що ти ${c.g('побачив', 'побачила')}, — ${foe.nom}. Ти ${c.g('загинув', 'загинула')}.`,

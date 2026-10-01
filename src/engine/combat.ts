@@ -3,7 +3,7 @@ import type { EnemyDef } from '../data/enemies.ts';
 import { INSTINCTS } from '../data/instincts.ts';
 import { HEALING_PILL } from '../data/pills.ts';
 import { DEATH_MEMORY, TALENT_EFFECTS } from '../data/talents.ts';
-import { realmOf } from './levels.ts';
+import { realmEdge } from './levels.ts';
 import { between, chance, nextFloat, type Rng } from './rng.ts';
 import type { Life } from './types.ts';
 import { effectiveStats, hasTalent, maxHp, totalArmor, weaponDamage } from './hero.ts';
@@ -51,7 +51,6 @@ const MAX_ROUNDS = 40;
 
 export function heroCombatant(life: Life, enemyKey?: string): Combatant {
   const stats = effectiveStats(life);
-  const instinct = INSTINCTS[life.instinct];
   const hp = maxHp(life);
   return {
     level: life.level,
@@ -70,9 +69,9 @@ export function heroCombatant(life: Life, enemyKey?: string): Combatant {
       return { key: t.key, k: def.k * (1 + 0.05 * Math.min(9, Math.floor(t.uses / 10))), cost: def.cost, stat: def.stat };
     }),
     damageMult:
-      (enemyKey && hasTalent(life.talents, DEATH_MEMORY, enemyKey) ? TALENT_EFFECTS.deathMemoryDamage : 1) * instinct.damage,
-    fleeBonus: (hasTalent(life.talents, 'quickStep') ? TALENT_EFFECTS.quickStepFlee : 0) + instinct.fleeBonus,
-    fleeAt: instinct.fleeAt,
+      enemyKey && hasTalent(life.talents, DEATH_MEMORY, enemyKey) ? TALENT_EFFECTS.deathMemoryDamage : 1,
+    fleeBonus: hasTalent(life.talents, 'quickStep') ? TALENT_EFFECTS.quickStepFlee : 0,
+    fleeAt: INSTINCTS[life.instinct].fleeAt,
   };
 }
 
@@ -167,9 +166,8 @@ function attack(att: Combatant, def: Combatant, rng: Rng): string | null {
   const hitChance = Math.min(0.95, Math.max(0.4, 0.75 + 0.02 * (att.agi - def.agi)));
   if (!chance(rng, hitChance)) return tech?.key ?? null;
 
-  const realmGap = realmOf(att.level) - realmOf(def.level);
   let dmg = (att.weapon + 0.5 * att.body + (tech ? tech.k * statValue(att, tech) : 0)) * between(rng, 0.85, 1.15);
-  dmg = dmg * att.damageMult * 1.5 ** realmGap - 0.5 * def.armor;
+  dmg = dmg * att.damageMult * realmEdge(att.level, def.level) - 0.5 * def.armor;
   if (chance(rng, 0.05 + 0.005 * att.luck)) dmg *= 2;
   def.hp -= Math.max(1, dmg);
   return tech?.key ?? null;

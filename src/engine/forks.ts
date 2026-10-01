@@ -73,7 +73,7 @@ export function resolveFork(s: GameState, rng: Rng, emit: Emit, option: string, 
         case 'refuse':
           return result('none', {}, 2);
         case 'rob': {
-          const r = encounter(s, rng, emit, 'hermit', L + 4, { avoidable: false, quiet: true });
+          const r = encounter(s, rng, emit, 'hermit', L + 4, { committed: true, quiet: true });
           if (r === 'lost') return;
           if (r === 'won') return result('won', manual(life), 6);
           return result('fled');
@@ -91,13 +91,13 @@ export function resolveFork(s: GameState, rng: Rng, emit: Emit, option: string, 
           const roll = nextFloat(rng);
           if (roll < 0.2) return result('elder', { item: gift(s, rng, 1) }, 6);
           if (roll < 0.4 && discover(s, 'thousandPillValley')) return result('valley', { knowledge: 'thousandPillValley' }, 6);
-          life.luckBonus += 2;
+          life.karma += 3;
           return result('grateful', {}, 3);
         }
         case 'rob': {
-          life.luckBonus -= 2;
+          life.karma -= 4;
           if (chance(rng, 0.15)) {
-            const r = encounter(s, rng, emit, 'banditCultivator', L + 2, { avoidable: false, quiet: true });
+            const r = encounter(s, rng, emit, 'banditCultivator', L + 2, { committed: true, quiet: true });
             if (r === 'lost') return;
             return result('woke', {}, 4);
           }
@@ -113,10 +113,11 @@ export function resolveFork(s: GameState, rng: Rng, emit: Emit, option: string, 
     case 'duelChallenge':
       switch (option) {
         case 'accept': {
-          const r = encounter(s, rng, emit, 'youngMaster', fork.enemyLevel, { avoidable: false, lethal: false, quiet: true });
+          const r = encounter(s, rng, emit, 'youngMaster', fork.enemyLevel, { committed: true, lethal: false, quiet: true });
           if (r === 'won') {
             const amount = 30 + 5 * L;
             life.contribution += amount;
+            life.reputation += 2;
             const clan = chance(rng, 0.25) && discover(s, 'ironFistClan');
             return result('won', clan ? { amount, knowledge: 'ironFistClan' } : { amount }, 6);
           }
@@ -125,6 +126,7 @@ export function resolveFork(s: GameState, rng: Rng, emit: Emit, option: string, 
         }
         case 'refuse':
           life.contribution = Math.max(0, life.contribution - 10);
+          life.reputation -= 1;
           return result('face', {}, 2);
         case 'bribe':
           life.stones -= fork.cost;
@@ -136,7 +138,7 @@ export function resolveFork(s: GameState, rng: Rng, emit: Emit, option: string, 
       switch (option) {
         case 'enter': {
           for (let i = 1; i <= 3; i++) {
-            const r = encounter(s, rng, emit, pickGuardian(s, rng), L + i, { avoidable: false, quiet: true });
+            const r = encounter(s, rng, emit, pickGuardian(s, rng), L + i, { committed: true, quiet: true });
             if (r === 'lost') return;
             if (r !== 'won') return result('fled', {}, 4);
           }
@@ -145,7 +147,7 @@ export function resolveFork(s: GameState, rng: Rng, emit: Emit, option: string, 
           return result('treasure', { item: gift(s, rng, 2), amount }, 7);
         }
         case 'lurk': {
-          const r = encounter(s, rng, emit, 'banditCultivator', L + 1, { avoidable: false, foeHp: 0.4, quiet: true });
+          const r = encounter(s, rng, emit, 'banditCultivator', L + 1, { committed: true, foeHp: 0.4, quiet: true });
           if (r === 'lost') return;
           if (r !== 'won') return result('none', {}, 2);
           const amount = 30 + 10 * L;

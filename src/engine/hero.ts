@@ -1,5 +1,5 @@
 import { HERO_NAMES } from '../data/heroNames.ts';
-import { INSTINCTS } from '../data/instincts.ts';
+import { KARMA_PER_LUCK, MAX_KARMA_LUCK } from '../data/quests.ts';
 import { PATHS, PATH_KEYS, type PathKey } from '../data/paths.ts';
 import { ROOTS, rootDef, type RootKey } from '../data/roots.ts';
 import { TALENT_EFFECTS } from '../data/talents.ts';
@@ -48,9 +48,14 @@ export function effectiveStats(life: Life): Stats {
     for (const key of STAT_KEYS) out[key] += item.bonus[key] ?? 0;
   }
   if (hasTalent(life.talents, 'luckyStar')) out.luck += TALENT_EFFECTS.luckyStarLuck;
-  out.luck += life.luckBonus;
+  out.luck += life.luckBonus + karmaLuck(life.karma);
   if (life.injuryMonths > 0) for (const key of STAT_KEYS) out[key] *= INJURY_FACTOR;
   return out;
+}
+
+/** Heaven keeps count: good deeds bring luck, bad ones take it away. */
+export function karmaLuck(karma: number): number {
+  return Math.max(-MAX_KARMA_LUCK, Math.min(MAX_KARMA_LUCK, Math.trunc(karma / KARMA_PER_LUCK)));
 }
 
 export function maxHp(life: Life): number {
@@ -67,7 +72,7 @@ export function totalArmor(life: Life): number {
 }
 
 export function bagCapacity(life: Life): number {
-  return 12 + Math.floor(life.stats.body / 2) + INSTINCTS[life.instinct].bagBonus;
+  return 12 + Math.floor(life.stats.body / 2);
 }
 
 export function bagCount(life: Life): number {
