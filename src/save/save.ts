@@ -4,7 +4,7 @@ import { CHARGE_MAX, DEFAULT_PRIORITY } from '../engine/reality.ts';
 import type { GameState } from '../engine/types.ts';
 
 export const SAVE_KEY = 'zrpg.save';
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export interface SaveFile {
   version: number;
@@ -75,6 +75,13 @@ const migrations: Record<number, (old: SaveFile) => SaveFile> = {
     if (s.life.quest) Object.assign(s.life.quest, { peaceful: false, inSect: false, ore: false });
     s.life.trip.ore = 0;
     return { ...old, version: 6, state: s as GameState };
+  },
+  // v6 → v7: the high realms, valor and the ending.
+  6: (old) => {
+    const s = old.state as any;
+    s.life.valor = 0;
+    s.ascended = false;
+    return { ...old, version: 7, state: s as GameState };
   },
 };
 

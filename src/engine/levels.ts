@@ -1,4 +1,4 @@
-import { REALMS, STAGES_PER_REALM } from '../data/realms.ts';
+import { MONTHS_PER_TICK, QI_COST_MULT, REALMS, STAGES_PER_REALM } from '../data/realms.ts';
 
 export function realmOf(level: number): number {
   return level === 0 ? 0 : Math.ceil(level / STAGES_PER_REALM);
@@ -15,8 +15,9 @@ export function isRealmGate(level: number): boolean {
 }
 
 /** Qi needed to reach `level` from the one below. */
+/** Qi needed to reach `level` from the one below; the high realms are steeply dearer (see QI_COST_MULT). */
 export function qiToReach(level: number): number {
-  return 100 * level ** 1.6;
+  return 100 * level ** 1.6 * QI_COST_MULT[realmOf(level)]!;
 }
 
 /** Qi gathered in one month of meditation towards `level`, before root/technique/path multipliers. */
@@ -42,6 +43,11 @@ export function realmEdge(attackerLevel: number, defenderLevel: number): number 
   let factor = 1;
   for (let r = Math.min(a, d); r < Math.max(a, d); r++) factor *= r === 0 ? 1.25 : 1.5;
   return a >= d ? factor : 1 / factor;
+}
+
+/** Months that one dreamed tick stands for at this level. */
+export function monthsPerTick(level: number): number {
+  return MONTHS_PER_TICK[realmOf(level)]!;
 }
 
 export function lifespanMonths(level: number): number {

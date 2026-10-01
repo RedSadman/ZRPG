@@ -1,10 +1,15 @@
 import { MAX_LEVEL } from '../data/realms.ts';
 import { ROOTS } from '../data/roots.ts';
-import { DEATH_MEMORY, TALENTS, TALENT_EFFECTS } from '../data/talents.ts';
+import { DEATH_MEMORY, TALENTS, TALENT_EFFECTS, THUNDER_SCAR } from '../data/talents.ts';
+import { ENEMIES } from '../data/enemies.ts';
+import { SECRETS } from '../data/knowledge.ts';
+import { MAX_LEVEL as PEAK, QI_COST_MULT, TRIBULATION_FROM_LEVEL } from '../data/realms.ts';
+import { enemyCombatant, fight, heroCombatant } from './combat.ts';
+import { defaultSetup, newLife } from './dream.ts';
 import { COMBAT_TECHNIQUES, CULTIVATION_TECHNIQUES, MAX_COMBAT_TECHNIQUES } from '../data/techniques.ts';
 import type { Emit } from './dream.ts';
 import { cultivationRate, growStats, hasTalent, STAT_KEYS } from './hero.ts';
-import { isRealmGate, qiToReach, totalProgress } from './levels.ts';
+import { isRealmGate, qiToReach, realmOf, totalProgress } from './levels.ts';
 import { itemPower } from './loot.ts';
 import { chance, nextFloat, pickWeighted, type Rng } from './rng.ts';
 import type { GameState, Hero, Life, Reward, RewardKind, Stats } from './types.ts';
@@ -49,7 +54,9 @@ export function realityBeat(s: GameState, rng: Rng, emit: Emit): void {
 
   if (hero.injuryBeats > 0) hero.injuryBeats -= 1;
   if (hero.level >= MAX_LEVEL) return;
-  hero.qi += cultivationRate(hero.root, hero.path, hero.level, hero.cultivation, hero.talents) * REAL_MONTHS_PER_BEAT;
+  // Waking meditation keeps pace with how dear each realm's qi is, so the high realms are not frozen awake.
+  const realmPace = QI_COST_MULT[realmOf(hero.level + 1)]!;
+  hero.qi += cultivationRate(hero.root, hero.path, hero.level, hero.cultivation, hero.talents) * REAL_MONTHS_PER_BEAT * realmPace;
   settleRealQi(s, rng, emit);
 }
 
@@ -79,7 +86,9 @@ export function canAttemptRealBreakthrough(hero: Hero): boolean {
 
 export function realBreakthroughChance(hero: Hero): number {
   const heart = hasTalent(hero.talents, 'steadyHeart') ? TALENT_EFFECTS.steadyHeartBreakthrough : 0;
-  return Math.min(0.95, 0.5 + 0.01 * hero.stats.mind + heart);
+  // From Golden Core on, the Heavenly Tribulation strikes the waking body too.
+  const storm = hero.level + 1 >= TRIBULATION_FROM_LEVEL ? 0.85 : 1;
+  return Math.min(0.95, (0.5 + 0.01 * hero.stats.mind + heart) * storm);
 }
 
 export function realBreakthrough(s: GameState, rng: Rng, emit: Emit): void {
@@ -154,6 +163,7 @@ function talentOffers(hero: Hero, life: Life, q: number, rng: Rng) {
   const out = [];
   const enemy = life.death?.cause === 'killed' ? life.death.enemy : undefined;
   if (enemy && !hasTalent(hero.talents, DEATH_MEMORY, enemy)) out.push({ key: DEATH_MEMORY, enemy });
+  if (life.death?.cause === 'tribulation' && !hasTalent(hero.talents, THUNDER_SCAR)) out.push({ key: THUNDER_SCAR });
   const pool = TALENTS.filter(
     (t) =>
       t.minQuality <= q &&
@@ -217,4 +227,32 @@ export function autoPick(offer: Reward[], priority: RewardKind[]): number {
     if (idx >= 0) return idx;
   }
   return 0;
+}
+
+// --- The ending ----------------------------------------------------------------
+
+/** All six Secrets known and the peak of Dao Union reached, awake: the Patriarch can be faced. */
+export function canFaceThePatriarch(s: GameState): boolean {
+  const hero = s.hero;
+  return (
+    !s.ascended &&
+    hero.level >= PEAK &&
+    hero.injuryBeats === 0 &&
+    SECRETS.every((x) => hero.knowledge.includes(x.key))
+  );
+}
+
+/**
+ * The real fight, with everything the real hero carries. A loss is not death — the Pillow pulls you back — but
+ * the wounds keep it silent for a while.
+ */
+export function fightThePatriarch(s: GameState, rng: Rng, emit: Emit): void {
+  const hero = s.hero;
+  const life = newLife(hero, 0, defaultSetup(hero));
+  const me = heroCombatant(life, 'bloodMoonPatriarch');
+  const foe = enemyCombatant(ENEMIES.bloodMoonPatriarch!, PEAK);
+  const won = fight(me, foe, 3, hero.stats.luck, rng).outcome === 'won';
+  if (won) s.ascended = true;
+  else hero.injuryBeats = INJURY_BEATS;
+  emit({ kind: 'finalBattle', won });
 }

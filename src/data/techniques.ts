@@ -16,10 +16,12 @@ export const COMBAT_TECHNIQUES: Record<string, CombatTechniqueDef> = {
   shadowCraneStep: { k: 0.7, cost: 7, stat: 'qi', contribution: 60 },
   mountainSplitPalm: { k: 1.0, cost: 12, stat: 'body', contribution: 150 },
   thousandSwordRain: { k: 1.4, cost: 18, stat: 'qi', contribution: 400 },
+  starfallPalm: { k: 2.0, cost: 26, stat: 'body', contribution: 1200 },
+  voidSeveringBlade: { k: 2.8, cost: 36, stat: 'qi', contribution: 3000 },
 };
 
 /** Combat techniques the sect library teaches, cheapest first. */
-export const LIBRARY = ['shadowCraneStep', 'mountainSplitPalm', 'thousandSwordRain'];
+export const LIBRARY = ['shadowCraneStep', 'mountainSplitPalm', 'thousandSwordRain', 'starfallPalm', 'voidSeveringBlade'];
 
 export const MAX_COMBAT_TECHNIQUES = 3;
 
@@ -34,4 +36,5 @@ export const CULTIVATION_TECHNIQUES: CultivationTechniqueDef[] = [
   { key: 'azureCloudSutra', qiMult: 1, contribution: 0 },
   { key: 'nineTurnsBreath', qiMult: 1.15, contribution: 120 },
   { key: 'heavenEarthMethod', qiMult: 1.35, contribution: 450 },
+  { key: 'nineHeavensScripture', qiMult: 1.6, contribution: 1500 },
 ];

@@ -59,7 +59,8 @@ export function questFoe(quest: Quest, life: Life, rng: Rng): string {
     case 'bandits':
       return 'banditCultivator';
     case 'demons':
-      return 'bloodMoonCultist';
+      // From Golden Core on, the cult sends its adepts.
+      return life.level >= 19 ? 'cultAdept' : 'bloodMoonCultist';
     case 'beasts': {
       const beasts = zoneFor(life.level).enemies.filter((e) => ENEMIES[e.key]!.kind === 'beast');
       return beasts.length ? pickWeighted(rng, beasts).key : 'spiritBoar';

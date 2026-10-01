@@ -1,10 +1,13 @@
 import { createRng, type Rng } from './rng.ts';
 import { generateHero } from './hero.ts';
+import { zoneFor } from '../data/zones.ts';
 import { defaultSetup, liveMonth, newLife, type Emit } from './dream.ts';
 import { instinctChoice, resolveFork } from './forks.ts';
 import { BLESSING_COST, startPlace } from '../data/knowledge.ts';
 import {
   CHARGE_MAX,
+  canFaceThePatriarch,
+  fightThePatriarch,
   DEFAULT_PRIORITY,
   applyReward,
   autoPick,
@@ -39,6 +42,7 @@ export function newGame(seed: number): GameState {
     autopilot: { enabled: false, priority: [...DEFAULT_PRIORITY] },
     setup: defaultSetup(hero),
     waitForMe: false,
+    ascended: false,
     dreamsEnded: 0,
     journal: [],
     nextEntryId: 1,
@@ -103,6 +107,12 @@ export function setWaitForMe(state: GameState, waitForMe: boolean): GameState {
 /** Fate points the setup would cost now, or null if it cannot be afforded as chosen. */
 export function setupCost(state: GameState, setup: DreamSetup = state.setup): number {
   return startPlace(setup.start).cost + (setup.blessing ? BLESSING_COST : 0);
+}
+
+/** The last fight, awake: the Blood Moon Patriarch. Win, and the dream of immortality comes true. */
+export function faceThePatriarch(state: GameState): GameState {
+  if (!canFaceThePatriarch(state)) return state;
+  return mutate(state, (s, rng) => fightThePatriarch(s, rng, emitter(s)));
 }
 
 export function attemptRealBreakthrough(state: GameState): GameState {
@@ -217,7 +227,14 @@ function wake(s: GameState, rng: Rng): void {
 }
 
 export function lifeScore(life: Life): number {
-  return life.level * 10 + Math.floor(life.ageMonths / 24) + life.bossesKilled.length * 15 + Math.floor(life.totals.kills / 10);
+  return (
+    life.level * 10 +
+    Math.floor(life.ageMonths / 24) +
+    life.bossesKilled.length * 15 +
+    Math.floor(life.totals.kills / 10) +
+    // Courage counts: every stronger foe beaten makes the life worth more.
+    Math.floor(life.valor / 2)
+  );
 }
 
 function summarize(life: Life): DreamSummary {
@@ -231,6 +248,7 @@ function summarize(life: Life): DreamSummary {
     n: life.n,
     ageMonths: life.ageMonths,
     level: life.level,
+    zone: zoneFor(life.level).key,
     death: life.death!,
     score: lifeScore(life),
     kills: life.totals.kills,

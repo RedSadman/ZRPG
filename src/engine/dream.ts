@@ -1,11 +1,11 @@
 import { ENEMIES } from '../data/enemies.ts';
 import { INSTINCTS } from '../data/instincts.ts';
-import { BLESSING_LUCK, HIDDEN_SPRING_MIN_LEVEL, HIDDEN_SPRING_QI, startPlace } from '../data/knowledge.ts';
+import { BLESSING_LUCK, HIDDEN_SPRING_MIN_LEVEL, HIDDEN_SPRING_QI, SECRETS, startPlace } from '../data/knowledge.ts';
 import { PATHS } from '../data/paths.ts';
 import { BREAKTHROUGH_PILLS, HEALING_PILL } from '../data/pills.ts';
-import { MAX_LEVEL } from '../data/realms.ts';
+import { MAX_LEVEL, MONTHS_PER_TICK, QI_COST_MULT, TRIBULATION_FROM_LEVEL } from '../data/realms.ts';
 import { RIVAL_SURNAMES } from '../data/rivals.ts';
-import { TALENT_EFFECTS } from '../data/talents.ts';
+import { TALENT_EFFECTS, THUNDER_SCAR } from '../data/talents.ts';
 import { COMBAT_TECHNIQUES, CULTIVATION_TECHNIQUES, LIBRARY, MAX_COMBAT_TECHNIQUES } from '../data/techniques.ts';
 import { zoneFor, type ZoneDef } from '../data/zones.ts';
 import { ELITE_ATK, ELITE_HP, chooseQuest, postBoard, questFoe, questNote } from './board.ts';
@@ -13,7 +13,7 @@ import { enemyCombatant, fight, heroCombatant } from './combat.ts';
 import { maybeFork } from './forks.ts';
 import { bagCapacity, bagCount, cultivationRate, effectiveStats, growStats, hasTalent, maxHp } from './hero.ts';
 import { estimateWin, perceivedWin } from './judgement.ts';
-import { isRealmGate, lifespanMonths, qiToReach, realmOf, stageOf, totalProgress } from './levels.ts';
+import { isRealmGate, lifespanMonths, monthsPerTick, qiToReach, realmOf, stageOf, totalProgress } from './levels.ts';
 import { itemPower, makeItem, rollRank, sellValue, starterItem, takeItem } from './loot.ts';
 import { between, chance, nextInt, pick, pickWeighted, type Rng } from './rng.ts';
 import type { Activity, DeathCause, DreamSetup, GameEvent, GameState, Hero, Life, Quest, Slot } from './types.ts';
@@ -110,6 +110,7 @@ export function newLife(hero: Hero, n: number, setup: DreamSetup = defaultSetup(
     karma: 0,
     reputation: 0,
     pillWaits: 0,
+    valor: 0,
   };
   life.hp = maxHp(life);
   return life;
@@ -150,9 +151,10 @@ function startingGear(hero: Hero, setup: DreamSetup): Life['equipment'] {
 /** Lives one month of the current dream. Sets `life.death` when the dream ends. */
 export function liveMonth(s: GameState, rng: Rng, emit: Emit): void {
   const life = s.life;
-  life.ageMonths += 1;
+  const months = monthsPerTick(life.level);
+  life.ageMonths += months;
   life.monthsInActivity += 1;
-  if (life.injuryMonths > 0) life.injuryMonths -= 1;
+  if (life.injuryMonths > 0) life.injuryMonths = Math.max(0, life.injuryMonths - months);
 
   if (life.ageMonths >= lifespanMonths(life.level)) {
     die(life, emit, 'oldAge');
@@ -458,7 +460,7 @@ function returningMonth(s: GameState, emit: Emit): void {
         kind: 'hunt',
         ageMonths: life.ageMonths,
         zone: zoneFor(life.level).key,
-        months: life.trip.months,
+        months: life.trip.months * monthsPerTick(life.level),
         kills,
         herbs,
         ...(ore ? { ore } : {}),
@@ -569,15 +571,24 @@ export function encounter(
   life.totals.kills += 1;
   life.trip.kills += 1;
   if (def.demonic) life.karma += 1;
+  life.valor += Math.max(0, level - life.level);
   if (level > life.level) {
     // Insight from beating someone stronger: the bold grow on danger.
     const need = qiToReach(life.level + 1);
-    life.qi = Math.min(need, life.qi + need * BATTLE_INSIGHT * (level - life.level));
+    // Measured against an ordinary stage: in the high realms one fight moves the hero proportionally less.
+    const realmCost = QI_COST_MULT[realmOf(life.level + 1)]! / MONTHS_PER_TICK[realmOf(life.level + 1)]!;
+    life.qi = Math.min(need, life.qi + (need * BATTLE_INSIGHT * (level - life.level)) / realmCost);
   }
 
   if (def.boss) {
     life.bossesKilled.push(enemyKey);
     note('boss', 8);
+    // Every realm's boss knows a piece of the truth about the cult.
+    const secret = SECRETS.find((x) => x.boss === enemyKey)?.key;
+    if (secret && !s.hero.knowledge.includes(secret) && !life.discoveries.includes(secret)) {
+      life.discoveries.push(secret);
+      emit({ kind: 'secret', ageMonths: life.ageMonths, secret }, 9);
+    }
   } else if (ambushed && odds < 0.5) note('ambushed', 4);
   else if (def.rival && !life.trip.rivalNoted) {
     // One arrogant young master per trip is a story; five is a chore.
@@ -604,10 +615,11 @@ export function encounter(
 
 // --- Cultivation ------------------------------------------------------------
 
+/** Qi gathered in one tick of meditation (a tick may stand for several months in the high realms). */
 export function qiPerMonth(hero: Hero, life: Life): number {
   const injury = life.injuryMonths > 0 ? 0.5 : 1;
   const spring = hero.knowledge.includes('hiddenSpring') && life.level >= HIDDEN_SPRING_MIN_LEVEL ? HIDDEN_SPRING_QI : 1;
-  return cultivationRate(hero.root, life.path, life.level, life.cultivation, life.talents) * injury * spring;
+  return cultivationRate(hero.root, life.path, life.level, life.cultivation, life.talents) * injury * spring * monthsPerTick(life.level);
 }
 
 function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
@@ -657,11 +669,53 @@ function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
     life.level = next;
     life.qi = 0;
     growStats(life.path, life.stats, 2, rng);
-    emit({ kind: 'stageUp', ageMonths: life.ageMonths, level: next, months: life.monthsInActivity }, 3);
+    emit({ kind: 'stageUp', ageMonths: life.ageMonths, level: next, months: life.monthsInActivity * monthsPerTick(life.level - 1) }, 3);
   }
   if (life.death) return;
   life.plan = 'hunt';
   go(life, 'sect');
+}
+
+/** Bolts by the realm being entered: Golden Core 3, Nascent Soul 6, Spirit Transformation and Dao Union 9. */
+const TRIBULATION_BOLTS: Record<number, { bolts: number; share: number }> = {
+  3: { bolts: 3, share: 0.3 },
+  4: { bolts: 6, share: 0.17 },
+  5: { bolts: 9, share: 0.13 },
+  6: { bolts: 9, share: 0.15 },
+};
+
+/**
+ * Heaven tests whoever tries to rise above it: a few bolts of lightning, each a share of what a cultivator of that
+ * level can usually take. Pills help between strikes; a scar from a past storm and a tempered heart soften them.
+ */
+function surviveTribulation(s: GameState, rng: Rng, emit: Emit, next: number): boolean {
+  const { life } = s;
+  const storm = TRIBULATION_BOLTS[realmOf(next)]!;
+  const usualHp = 40 + (5 + 0.6 * next) * 6 + 10 * next;
+  const armor = Object.values(life.equipment).reduce((sum, i) => sum + i.armor, 0);
+  const soften =
+    (hasTalent(life.talents, THUNDER_SCAR) ? TALENT_EFFECTS.thunderScarDamage : 1) *
+    (hasTalent(life.talents, 'steadyHeart') ? 0.9 : 1);
+  const hpMax = maxHp(life);
+  let hp = hpMax;
+  for (let i = 0; i < storm.bolts; i++) {
+    hp -= Math.max(1, usualHp * storm.share * between(rng, 0.7, 1.3) * soften - 0.5 * armor);
+    if (hp <= 0) {
+      if (chance(rng, 0.05 + 0.005 * effectiveStats(life).luck)) {
+        hp = 1;
+        continue;
+      }
+      emit({ kind: 'tribulation', ageMonths: life.ageMonths, level: next, bolts: i + 1, survived: false }, 8);
+      die(life, emit, 'tribulation');
+      return false;
+    }
+    if (hp < hpMax * 0.4 && life.pills.healing > 0) {
+      life.pills.healing -= 1;
+      hp = Math.min(hpMax, hp + hpMax * HEALING_PILL.heal);
+    }
+  }
+  emit({ kind: 'tribulation', ageMonths: life.ageMonths, level: next, bolts: storm.bolts, survived: true }, 7);
+  return true;
 }
 
 function attemptBreakthrough(s: GameState, rng: Rng, emit: Emit): void {
@@ -674,6 +728,7 @@ function attemptBreakthrough(s: GameState, rng: Rng, emit: Emit): void {
   if (usedPill) life.pills.breakthrough = null;
 
   if (chance(rng, p)) {
+    if (next >= TRIBULATION_FROM_LEVEL && !surviveTribulation(s, rng, emit, next)) return;
     life.level = next;
     life.qi = 0;
     growStats(life.path, life.stats, 4, rng);

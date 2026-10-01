@@ -129,7 +129,7 @@ export interface QuestNote {
   contribution: number;
 }
 
-export type DeathCause = 'killed' | 'oldAge' | 'deviation';
+export type DeathCause = 'killed' | 'oldAge' | 'deviation' | 'tribulation';
 
 export interface Death {
   cause: DeathCause;
@@ -189,6 +189,8 @@ export interface Life {
   reputation: number;
   /** Times a breakthrough was put off to wait for a pill. */
   pillWaits: number;
+  /** Levels of difference over every stronger foe beaten: courage the score rewards. */
+  valor: number;
 }
 
 export type FightNote = 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed' | 'ambushed';
@@ -203,6 +205,9 @@ export type GameEvent =
   | { kind: 'questDone'; ageMonths: number; quest: QuestNote; declined: boolean; item?: Item }
   | { kind: 'questFailed'; ageMonths: number; quest: QuestNote }
   | { kind: 'pillWait'; ageMonths: number; level: number }
+  | { kind: 'tribulation'; ageMonths: number; level: number; bolts: number; survived: boolean }
+  | { kind: 'secret'; ageMonths: number; secret: string }
+  | { kind: 'finalBattle'; won: boolean }
   | { kind: 'sect'; ageMonths: number; sold: number; contribution: number }
   | { kind: 'technique'; ageMonths: number; technique: string }
   | { kind: 'stageUp'; ageMonths: number; level: number; months: number }
@@ -240,6 +245,8 @@ export interface JournalEntry {
 
 /** What is left of a dream after waking: the Chronicle of Lives. */
 export interface DreamSummary {
+  /** Where the dream ended, for the map. */
+  zone?: string;
   n: number;
   ageMonths: number;
   level: number;
@@ -268,6 +275,8 @@ export interface GameState {
   setup: DreamSetup;
   /** Forks wait for the player forever instead of letting the instinct answer. */
   waitForMe: boolean;
+  /** The Blood Moon Patriarch has fallen in the waking world: the game's ending has been reached. */
+  ascended: boolean;
   dreamsEnded: number;
   journal: JournalEntry[];
   nextEntryId: number;

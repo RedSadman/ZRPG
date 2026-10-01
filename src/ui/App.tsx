@@ -8,6 +8,7 @@ import { PATH_KEYS, type PathKey } from '../data/paths.ts';
 import {
   attemptRealBreakthrough,
   catchUp,
+  faceThePatriarch,
   chooseFork,
   chooseReward,
   movePriority,
@@ -25,8 +26,12 @@ import {
   BEATS_PER_CHARGE,
   CHARGE_MAX,
   canAttemptRealBreakthrough,
+  canFaceThePatriarch,
   realBreakthroughChance,
 } from '../engine/reality.ts';
+import { SECRETS } from '../data/knowledge.ts';
+import { Icon } from './Icon.tsx';
+import { MapPanel } from './MapPanel.tsx';
 import type { GameState } from '../engine/types.ts';
 import { TICK_MS, startTicker, ticksSince } from '../clock/clock.ts';
 import { clearSave, loadSave, writeSave } from '../save/save.ts';
@@ -120,7 +125,13 @@ export function App() {
 
       <div class="layout">
         <aside class="side">
-          <RealityPanel game={game} locale={locale} speed={speed} onBreakthrough={() => setGame(attemptRealBreakthrough)} />
+          <RealityPanel
+            game={game}
+            locale={locale}
+            speed={speed}
+            onBreakthrough={() => setGame(attemptRealBreakthrough)}
+            onFinal={() => setGame(faceThePatriarch)}
+          />
           {game.phase === 'dreaming' && <DreamPanel game={game} locale={locale} />}
           <SetupPanel game={game} locale={locale} update={setGame} />
 
@@ -206,6 +217,13 @@ export function App() {
         </aside>
 
         <main class="main">
+          {game.ascended && (
+            <section class="panel ending">
+              <h2>{m.ui.endingTitle}</h2>
+              <p>{m.ui.endingText}</p>
+            </section>
+          )}
+
           {game.phase === 'dreaming' && game.life.fork && (
             <ForkCard game={game} locale={locale} speed={speed} onChoose={(option) => setGame((s) => chooseFork(s, option))} />
           )}
@@ -218,7 +236,9 @@ export function App() {
                   const ctx = narrationContext(game, locale);
                   return (
                     <button key={i} class={`offer offer-${reward.kind}`} onClick={() => setGame((s) => chooseReward(s, i))}>
-                      <strong>{m.rewardTitle(reward, ctx)}</strong>
+                      <strong>
+                        <Icon name={reward.kind === 'item' ? reward.item.slot : reward.kind} /> {m.rewardTitle(reward, ctx)}
+                      </strong>
                       <span>{m.rewardDesc(reward, ctx)}</span>
                     </button>
                   );
@@ -226,6 +246,8 @@ export function App() {
               </div>
             </section>
           )}
+
+          <MapPanel game={game} locale={locale} />
 
           {lastDream && (
             <section class="panel last-dream">
@@ -413,11 +435,13 @@ function RealityPanel({
   locale,
   speed,
   onBreakthrough,
+  onFinal,
 }: {
   game: GameState;
   locale: Locale;
   speed: number;
   onBreakthrough: () => void;
+  onFinal: () => void;
 }) {
   const m = messages(locale);
   const ctx = narrationContext(game, locale);
@@ -446,6 +470,16 @@ function RealityPanel({
         </button>
       )}
       {hero.injuryBeats > 0 && <p class="warning">{m.ui.injured(beatsToClock(hero.injuryBeats, speed))}</p>}
+
+      <p class="small">
+        <Icon name="secret" /> {m.ui.secrets(SECRETS.filter((x) => hero.knowledge.includes(x.key)).length, SECRETS.length)}
+      </p>
+      {canFaceThePatriarch(game) && (
+        <button class="action final" onClick={onFinal}>
+          {m.ui.finalBattle}
+          <small>{m.ui.finalHint}</small>
+        </button>
+      )}
 
       <div class="charges">
         <span class="label">{m.ui.charges}</span>
@@ -544,7 +578,9 @@ function DreamPanel({ game, locale }: { game: GameState; locale: Locale }) {
           const item = life.equipment[slot];
           return (
             <li key={slot}>
-              <span class="muted">{m.slots[slot]}</span>
+              <span class="muted">
+                <Icon name={slot} /> {m.slots[slot]}
+              </span>
               {item ? <span class={`rank-${item.rank}`}>{ctx.item(item, 'nom')}</span> : <span class="muted">—</span>}
             </li>
           );

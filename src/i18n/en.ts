@@ -20,6 +20,7 @@ const FOES: PluralForms = { one: 'one foe defeated', other: '{n} foes defeated' 
 const HERBS: PluralForms = { one: 'a bundle of spirit herbs', other: '{n} bundles of spirit herbs' };
 const ORE: PluralForms = { one: 'a chunk of spirit ore', other: '{n} chunks of spirit ore' };
 const CLASHES: PluralForms = { one: 'one clash', other: '{n} clashes' };
+const BOLTS: PluralForms = { one: 'a bolt', other: '{n} bolts' };
 /** "grey spirit wolf" → "grey spirit wolves", good enough for the beasts in this world. */
 const pluralNoun = (noun: string) =>
   noun.endsWith('wolf') ? `${noun.slice(0, -1)}ves` : noun.endsWith('s') ? noun : `${noun}s`;
@@ -57,6 +58,10 @@ export const en: Messages = {
     villageWoods: { nom: 'Village woods', in: 'in the woods by the village' },
     azureFoothills: { nom: 'Azure Cloud Foothills', in: 'in the foothills of Azure Cloud Mountain' },
     thousandBeastForest: { nom: 'Forest of a Thousand Beasts', in: 'in the Forest of a Thousand Beasts' },
+    poisonMistSwamps: { nom: 'Poison Mist Swamps', in: 'in the Poison Mist Swamps' },
+    burningSands: { nom: 'Burning Sands', in: 'in the Burning Sands' },
+    northernIsles: { nom: 'Northern Isles', in: 'on the Northern Isles' },
+    heavenlyStairs: { nom: 'Heavenly Stairs', in: 'on the Heavenly Stairs' },
   },
   enemies: {
     spiritBoar: { nom: 'spirit boar', article: 'a' },
@@ -69,6 +74,21 @@ export const en: Messages = {
     ironbackBear: { nom: 'ironback bear', article: 'an' },
     youngMaster: { nom: 'young master', article: 'a' },
     bloodMoonCultist: { nom: 'Blood Moon cultist', article: 'a' },
+    venomToad: { nom: 'giant venom toad', article: 'a' },
+    mireCrocodile: { nom: 'mire crocodile', article: 'a' },
+    cultAdept: { nom: 'Blood Moon adept', article: 'a' },
+    cultElder: { nom: 'the Blood Moon Elder', article: '' },
+    flameScorpion: { nom: 'flame scorpion', article: 'a' },
+    sandWyrm: { nom: 'sand wyrm', article: 'a' },
+    ruinSpirit: { nom: 'ruin spirit', article: 'a' },
+    fireDragonScorpion: { nom: 'the Fire Dragon-Scorpion', article: '' },
+    seaSerpent: { nom: 'sea serpent', article: 'a' },
+    stormHawk: { nom: 'storm hawk', article: 'a' },
+    pirateCultivator: { nom: 'pirate cultivator', article: 'a' },
+    islandTurtle: { nom: 'the Old Island Turtle', article: '' },
+    heavenGuard: { nom: 'heavenly guardian', article: 'a' },
+    heartIllusion: { nom: 'heart illusion', article: 'a' },
+    bloodMoonPatriarch: { nom: 'the Blood Moon Patriarch', article: '' },
     hermit: { nom: 'hermit', article: 'a' },
     shadowWolfKing: { nom: 'the Shadow Wolf King', article: '' },
   },
@@ -123,6 +143,9 @@ export const en: Messages = {
     azureCloudSutra: 'Azure Cloud Sutra',
     nineTurnsBreath: 'Breath of Nine Turns',
     heavenEarthMethod: 'Method of Heaven and Earth United',
+    nineHeavensScripture: 'Scripture of the Nine Heavens',
+    starfallPalm: 'Starfall Palm',
+    voidSeveringBlade: 'Void-Severing Blade',
   },
   talents: {
     ironSkin: { name: 'Iron Skin', desc: '+10% health in every dream' },
@@ -133,6 +156,7 @@ export const en: Messages = {
     qiSponge: { name: 'Qi Sponge', desc: '+10% cultivation speed' },
     rootRefine: { name: 'Root Refinement', desc: 'Your spirit root improves by one grade' },
     deathMemory: { name: 'Memory of Death', desc: '+25% damage against whoever killed you' },
+    thunderScar: { name: 'Lightning-Scarred', desc: 'The Heavenly Tribulation strikes a quarter softer' },
   },
   rewardTitle: (r, c) => {
     switch (r.kind) {
@@ -255,6 +279,15 @@ export const en: Messages = {
     karma: 'Karma',
     reputation: 'Reputation',
     quest: 'Task',
+    map: 'Map of the Realm Under Heaven',
+    mapHere: 'you are here',
+    mapDeaths: (n) => `dreams ended here: ${n}`,
+    secrets: (k, t) => `Secrets: ${k} of ${t}`,
+    finalBattle: 'Challenge the Patriarch, awake',
+    finalHint: 'All six Secrets are known. The Patriarch is already on his way to the inn.',
+    endingTitle: 'Ascension',
+    endingText:
+      'You open your eyes. The Blood Moon Patriarch lies at the threshold of the inn, and the Taoist unhurriedly lifts the pot from the fire. “The millet is done,” he says. A thousand dreams are over. Ahead lies immortality.',
   },
   instincts: {
     cautious: { name: 'Cautious', desc: 'Avoids any fight it is not sure to win. Lives longer, but misses a lot' },
@@ -309,6 +342,30 @@ export const en: Messages = {
     hiddenSpring: { name: 'Hidden Qi Spring', desc: '+25% cultivation during Foundation Establishment' },
     thousandPillValley: { name: 'Valley of a Thousand Pills', desc: 'New starting place: cheap pills' },
     ironFistClan: { name: 'Iron Fist Clan', desc: 'New starting place: clan bracers and a cheap armory' },
+    secretRavine: {
+      name: 'Secret of the Black Ravine',
+      desc: 'The Chief carried a blood-red token marked with a moon: the Blood Moon Cult pays bandits to watch the Azure Cloud Sect.',
+    },
+    secretWolves: {
+      name: 'Secret of the Shadow Wolves',
+      desc: 'The shadow wolves were driven mad by cult rites deep in the forest. Someone in the sect is opening the way for the cultists.',
+    },
+    secretElder: {
+      name: 'Secret of the Cult Elder',
+      desc: 'Dying, the cult elder named a name: Elder Wang — the one who once judged your spirit root — is the Blood Moon spy.',
+    },
+    secretRuins: {
+      name: 'Secret of the Burning Ruins',
+      desc: 'The ruins of an ancient sect say it plainly: the cult seeks the Jade Pillow. Whoever holds it can live a life again — and undo a defeat.',
+    },
+    secretTurtle: {
+      name: 'Secret of the Old Turtle',
+      desc: 'The turtle remembers the Taoist from the inn: once the Patriarch’s sworn brother, he stole the Pillow and hid it where no one would look — in an ordinary inn.',
+    },
+    secretPatriarch: {
+      name: 'Secret of the Patriarch',
+      desc: 'In a dream you defeated the Patriarch and saw his weakness. Now you know: he is already on his way to the inn. The millet is about to boil.',
+    },
   },
   forks: enForks,
   ageYears: { one: '{n}', other: '{n}' },
@@ -426,7 +483,20 @@ export const en: Messages = {
     breakthroughFail: (e, c) =>
       `You are ${c.age(e.ageMonths)}. The breakthrough to ${realmName(c.m, e.level)} failed: qi lashed your meridians, and you coughed blood for a year.`,
     wall: (e, c) =>
-      `You are ${c.age(e.ageMonths)}. At the peak of Foundation Establishment you felt the wall beyond which the Golden Core begins. The Pillow will not let you further yet. You become a sect elder and teach the young.`,
+      `You are ${c.age(e.ageMonths)}. You stand at the peak of Dao Union. Beyond it lies only Ascension, and no dream can grant that. You become a sect elder and teach the young.`,
+    tribulation: (e, c) => {
+      const age = `You are ${c.age(e.ageMonths)}.`;
+      if (e.survived) return `${age} The sky split open: ${c.plural(e.bolts, BOLTS)}, one after another. You stood — the Heavenly Tribulation is passed.`;
+      const held = e.bolts - 1;
+      return held > 0
+        ? `${age} The Heavenly Tribulation: you withstood ${c.plural(held, BOLTS)}, but the next was the last.`
+        : `${age} The Heavenly Tribulation: the very first bolt was the last.`;
+    },
+    secret: (e, c) => `You are ${c.age(e.ageMonths)}. ${c.m.knowledge[e.secret]!.name}. ${c.m.knowledge[e.secret]!.desc}`,
+    finalBattle: (e) =>
+      e.won
+        ? 'Awake, you met the Blood Moon Patriarch on the threshold of the inn — and won.'
+        : 'Awake, the Blood Moon Patriarch proved stronger. The Pillow pulled you back from death, but your meridians will burn for a long time.',
     death: (e, c) => {
       const age = `You are ${c.age(e.ageMonths)}.`;
       switch (e.death.cause) {
@@ -439,6 +509,8 @@ export const en: Messages = {
           return `${age} You died quietly of old age in your cell.`;
         case 'deviation':
           return `${age} Your qi spun out of control. All that was left of you was a scorched mat.`;
+        case 'tribulation':
+          return `${age} All that was left of you was a scorched mark on the rock. Heaven would not let you rise.`;
       }
     },
     wake: (e) => `You wake up in the inn. The millet is not done yet. Dream #${e.dream} is over; life score ${e.score}.`,
@@ -469,7 +541,9 @@ export const en: Messages = {
         ? `Killed by ${a(c.enemy(s.death.enemy!, s.death.enemyName))}.`
         : s.death.cause === 'oldAge'
           ? 'Died of old age.'
-          : 'Qi deviation.';
+          : s.death.cause === 'tribulation'
+            ? 'Heavenly Tribulation.'
+            : 'Qi deviation.';
     return `Dream #${s.n}: age ${c.age(s.ageMonths)}, ${c.level(s.level)}. ${cause} Score: ${s.score}.`;
   },
 };

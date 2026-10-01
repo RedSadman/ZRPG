@@ -529,3 +529,85 @@ select {
 .entry-remembered {
   color: var(--ink);
 }
+
+/* --- Milestone 6: map, icons, ending --- */
+
+.icon {
+  display: inline-block;
+  vertical-align: -3px;
+  flex: none;
+}
+
+.map svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.map-route {
+  fill: none;
+  stroke: var(--rule);
+  stroke-width: 3;
+  stroke-dasharray: 6 6;
+}
+
+.map-zone ellipse {
+  fill: var(--paper);
+  stroke: var(--rule);
+  stroke-width: 1.5;
+}
+
+.map-zone.here ellipse {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.map-label {
+  fill: var(--ink);
+  font-size: 10px;
+}
+
+.map-here {
+  fill: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.map-deaths {
+  color: var(--danger);
+}
+
+.map-deaths text {
+  fill: var(--danger);
+  font-size: 12px;
+}
+
+.map-secret {
+  color: var(--rank-3);
+}
+
+.map-place {
+  color: var(--qi);
+}
+
+button.action.final {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ending {
+  border-color: var(--rank-3);
+  box-shadow: 0 0 0 1px var(--rank-3);
+}
+
+.ending h2 {
+  color: var(--rank-3);
+}
+
+.entry-tribulation,
+.entry-secret,
+.entry-finalBattle {
+  color: var(--rank-3);
+  font-weight: 600;
+}

@@ -20,6 +20,9 @@ export const TALENTS: TalentDef[] = [
 /** Offered after a violent death: the hero remembers who killed them. */
 export const DEATH_MEMORY = 'deathMemory';
 
+/** Offered after dying under the Heavenly Tribulation: the next storm hurts less. */
+export const THUNDER_SCAR = 'thunderScar';
+
 export const TALENT_EFFECTS = {
   ironSkinHp: 1.1,
   quickStepFlee: 0.15,
@@ -28,4 +31,5 @@ export const TALENT_EFFECTS = {
   steadyHeartBreakthrough: 0.1,
   qiSpongeRate: 1.1,
   deathMemoryDamage: 1.25,
+  thunderScarDamage: 0.75,
 };

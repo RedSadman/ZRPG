@@ -59,6 +59,54 @@ export const ZONES: ZoneDef[] = [
     boss: 'shadowWolfKing',
     herbValue: 10,
   },
+  {
+    key: 'poisonMistSwamps',
+    maxLevel: 27,
+    enemies: [
+      { key: 'venomToad', weight: 30 },
+      { key: 'mireCrocodile', weight: 25 },
+      { key: 'spiritSerpent', weight: 10 },
+      { key: 'cultAdept', weight: 18 },
+      { key: 'youngMaster', weight: 6 },
+    ],
+    boss: 'cultElder',
+    herbValue: 30,
+  },
+  {
+    key: 'burningSands',
+    maxLevel: 36,
+    enemies: [
+      { key: 'flameScorpion', weight: 30 },
+      { key: 'sandWyrm', weight: 25 },
+      { key: 'ruinSpirit', weight: 20 },
+      { key: 'cultAdept', weight: 10 },
+    ],
+    boss: 'fireDragonScorpion',
+    herbValue: 80,
+  },
+  {
+    key: 'northernIsles',
+    maxLevel: 45,
+    enemies: [
+      { key: 'seaSerpent', weight: 30 },
+      { key: 'stormHawk', weight: 25 },
+      { key: 'pirateCultivator', weight: 20 },
+      { key: 'cultAdept', weight: 10 },
+    ],
+    boss: 'islandTurtle',
+    herbValue: 200,
+  },
+  {
+    key: 'heavenlyStairs',
+    maxLevel: 54,
+    enemies: [
+      { key: 'heavenGuard', weight: 30 },
+      { key: 'heartIllusion', weight: 25 },
+      { key: 'cultAdept', weight: 15 },
+    ],
+    boss: 'bloodMoonPatriarch',
+    herbValue: 500,
+  },
 ];
 
 export function zoneFor(level: number): ZoneDef {

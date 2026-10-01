@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_LEVEL } from '../data/realms.ts';
 import { CHRONICLE_LIMIT, JOURNAL_LIMIT, START_AGE_MONTHS, advanceMonths, advanceSteps, catchUp, newGame, setAutopilot, step } from './sim.ts';
 
 /** A game that plays itself: rewards are picked by priority, so dreams keep coming. */
@@ -65,7 +66,7 @@ describe('sim', () => {
         expect(s.life.ageMonths).toBeGreaterThanOrEqual(lastAge);
         lastAge = s.life.ageMonths;
       }
-      expect(s.life.level).toBeLessThanOrEqual(18);
+      expect(s.life.level).toBeLessThanOrEqual(MAX_LEVEL);
     }
   });
 

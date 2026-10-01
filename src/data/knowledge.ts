@@ -1,7 +1,30 @@
 // Things remembered from past dreams. Once known, they exist in every later dream.
 
-export const KNOWLEDGE = ['oldZhangCave', 'hiddenSpring', 'thousandPillValley', 'ironFistClan'] as const;
+/**
+ * The six Secrets: each realm's boss, beaten in a dream, gives up a piece of the truth about the Blood Moon Cult.
+ * All six, and a hero at the peak of Dao Union, open the last fight — awake.
+ */
+export const SECRETS = [
+  { key: 'secretRavine', boss: 'blackRavineChief' },
+  { key: 'secretWolves', boss: 'shadowWolfKing' },
+  { key: 'secretElder', boss: 'cultElder' },
+  { key: 'secretRuins', boss: 'fireDragonScorpion' },
+  { key: 'secretTurtle', boss: 'islandTurtle' },
+  { key: 'secretPatriarch', boss: 'bloodMoonPatriarch' },
+] as const;
+
+export const KNOWLEDGE = [
+  'oldZhangCave',
+  'hiddenSpring',
+  'thousandPillValley',
+  'ironFistClan',
+  ...SECRETS.map((s) => s.key),
+] as const;
 export type KnowledgeKey = (typeof KNOWLEDGE)[number];
+
+export function isSecret(key: string): boolean {
+  return SECRETS.some((s) => s.key === key);
+}
 
 /** Meditating at the hidden spring (once known) speeds up Foundation-level cultivation. */
 export const HIDDEN_SPRING_QI = 1.25;

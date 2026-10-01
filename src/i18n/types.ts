@@ -156,6 +156,14 @@ export interface Messages {
     karma: string;
     reputation: string;
     quest: string;
+    map: string;
+    mapHere: string;
+    mapDeaths: (n: number) => string;
+    secrets: (known: number, total: number) => string;
+    finalBattle: string;
+    finalHint: string;
+    endingTitle: string;
+    endingText: string;
   };
   instincts: Record<Instinct, { name: string; desc: string }>;
   /** "полювання на сірого духовного вовка" — what a task is, for the journal and the panel. */
