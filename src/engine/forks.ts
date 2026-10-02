@@ -2,6 +2,7 @@ import { FORKS, FORK_CHANCE, FORK_WAIT_BEATS, type ForkDef } from '../data/forks
 import { zoneFor } from '../data/zones.ts';
 import { addTechnique, encounter, nextLibraryTechnique, type Emit } from './dream.ts';
 import { maxHp } from './hero.ts';
+import { temperament } from './temperament.ts';
 import { qiToReach } from './levels.ts';
 import { makeItem, rollRank, takeItem } from './loot.ts';
 import { chance, nextFloat, nextInt, pickWeighted, type Rng } from './rng.ts';
@@ -12,7 +13,8 @@ type Extra = Partial<Pick<ForkResult, 'amount' | 'item' | 'technique' | 'knowled
 
 /** Maybe a fork appears this month. Returns true if the dream now waits for an answer. */
 export function maybeFork(s: GameState, rng: Rng, emit: Emit): boolean {
-  if (!chance(rng, FORK_CHANCE)) return false;
+  // The curious wander off the path, and the path offers them more.
+  if (!chance(rng, FORK_CHANCE * (1 + 2 * temperament(s.life).traits.curiosity))) return false;
   const { hero, life } = s;
   const zone = zoneFor(life.level).key;
   const eligible = FORKS.filter(
@@ -48,9 +50,10 @@ export function instinctChoice(s: GameState): string {
   const { life } = s;
   const fork = life.fork!;
   const def = FORKS.find((f) => f.key === fork.key)!;
-  const preferred = def.options.find((o) => o.instincts.includes(life.instinct) && fork.options.includes(o.key));
-  const cautious = def.options.find((o) => o.instincts.includes('cautious') && fork.options.includes(o.key));
-  return (preferred ?? cautious ?? def.options.find((o) => fork.options.includes(o.key)))!.key;
+  const likes = (instinct: string | null) =>
+    instinct ? def.options.find((o) => o.instincts.includes(instinct as never) && fork.options.includes(o.key)) : undefined;
+  // The main instinct answers; if it has no opinion, the secondary one does; failing that, caution.
+  return (likes(life.instinct) ?? likes(life.secondary) ?? likes('cautious') ?? def.options.find((o) => fork.options.includes(o.key)))!.key;
 }
 
 /** Plays out the chosen option. The dream may end here (a fight lost in a secret realm, say). */

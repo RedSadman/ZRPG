@@ -1,7 +1,7 @@
 import { createRng, type Rng } from './rng.ts';
 import { generateHero } from './hero.ts';
 import { zoneFor } from '../data/zones.ts';
-import { defaultSetup, liveMonth, newLife, type Emit } from './dream.ts';
+import { defaultSetup, huntingZone, liveMonth, newLife, type Emit } from './dream.ts';
 import { instinctChoice, resolveFork } from './forks.ts';
 import { BLESSING_COST, startPlace } from '../data/knowledge.ts';
 import {
@@ -215,6 +215,7 @@ function beginDream(s: GameState): void {
     path: life.path,
     start: life.start,
     instinct: life.instinct,
+    ...(life.secondary ? { secondary: life.secondary } : {}),
   });
 }
 
@@ -289,7 +290,8 @@ function summarize(life: Life): DreamSummary {
     n: life.n,
     ageMonths: life.ageMonths,
     level: life.level,
-    zone: zoneFor(life.level).key,
+    // A curious dreamer may die a region ahead of their level.
+    zone: (life.activity === 'hunt' ? huntingZone(life) : zoneFor(life.level)).key,
     death: life.death!,
     score: lifeScore(life),
     kills: life.totals.kills,

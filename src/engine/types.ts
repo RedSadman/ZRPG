@@ -73,6 +73,8 @@ export interface Hero {
 /** What the player decides before falling asleep; kept between dreams. */
 export interface DreamSetup {
   instinct: Instinct;
+  /** A second, weaker streak in the dreamer's character; none if absent or null. */
+  secondary?: Instinct | null;
   path: PathKey;
   start: string;
   blessing: boolean;
@@ -186,7 +188,17 @@ export interface Life {
   bossesKilled: string[];
   wallHit: boolean;
   /** Counters for the current hunting trip, flushed into one journal line on the way back. */
-  trip: { months: number; kills: number; herbs: number; ore: number; avoided: number; bossTried: boolean; rivalNoted: boolean };
+  trip: {
+    months: number;
+    kills: number;
+    herbs: number;
+    ore: number;
+    avoided: number;
+    bossTried: boolean;
+    rivalNoted: boolean;
+    /** Curiosity led this trip into the next, harder region. */
+    peek: boolean;
+  };
   totals: { fights: number; wins: number; flees: number; kills: number };
   highlights: Array<{ priority: number; event: GameEvent }>;
   death: Death | null;
@@ -195,6 +207,11 @@ export interface Life {
   startProgress: number;
   path: PathKey;
   instinct: Instinct;
+  secondary: Instinct | null;
+  /** Someone the hero once ran from, and means to find again. */
+  grudge: { enemy: string; level: number; name?: string; ageMonths: number } | null;
+  /** 0 outer disciple, 1 inner disciple, 2 senior brother or sister, 3 elder: earned by reputation, never taken away. */
+  sectRank: number;
   start: string;
   /** Luck from the Blessing of Fate and from karma earned at forks. */
   luckBonus: number;
@@ -213,7 +230,17 @@ export interface Life {
   valor: number;
 }
 
-export type FightNote = 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed' | 'ambushed' | 'escaped';
+export type FightNote =
+  | 'boss'
+  | 'rival'
+  | 'closeCall'
+  | 'stronger'
+  | 'fled'
+  | 'rescued'
+  | 'sensed'
+  | 'ambushed'
+  | 'escaped'
+  | 'revenge';
 
 /** One kind of product made in one visit to the workshop. */
 export interface WorkshopBatch {
@@ -225,8 +252,28 @@ export interface WorkshopBatch {
 
 export type GameEvent =
   | { kind: 'dreamStart'; dream: number }
-  | { kind: 'joinSect'; ageMonths: number; root: RootKey; path: PathKey; start?: string; instinct?: Instinct }
-  | { kind: 'fight'; ageMonths: number; enemy: string; enemyLevel: number; note: FightNote; name?: string }
+  | {
+      kind: 'joinSect';
+      ageMonths: number;
+      root: RootKey;
+      path: PathKey;
+      start?: string;
+      instinct?: Instinct;
+      secondary?: Instinct;
+    }
+  | {
+      kind: 'fight';
+      ageMonths: number;
+      enemy: string;
+      enemyLevel: number;
+      note: FightNote;
+      name?: string;
+      /** For revenge: years since the grudge began. */
+      years?: number;
+    }
+  | { kind: 'explore'; ageMonths: number; zone: string }
+  | { kind: 'grudge'; ageMonths: number; enemy: string; name?: string }
+  | { kind: 'promotion'; ageMonths: number; rank: number }
   | { kind: 'loot'; ageMonths: number; item: Item }
   | { kind: 'hunt'; ageMonths: number; zone: string; months: number; kills: number; herbs: number; ore?: number; avoided?: number }
   | { kind: 'questTaken'; ageMonths: number; quest: QuestNote; instinct: Instinct }

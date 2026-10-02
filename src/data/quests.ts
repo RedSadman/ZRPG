@@ -1,3 +1,4 @@
+import type { Instinct } from './instincts.ts';
 // The sect's task board. Each visit it offers a few tasks; the dreamer's instinct picks one.
 
 export type QuestKind =
@@ -75,7 +76,11 @@ export const REPUTATION_PAY = 0.05;
  * Tasks that match a temperament's ideal, for the journal's "why": a righteous hero hunting boars did not do it to
  * help anyone. Instincts not listed always choose in character (the safest, the best paid).
  */
-export const QUEST_IDEALS: Partial<Record<'bold' | 'righteous', QuestKind[]>> = {
+export const QUEST_IDEALS: Partial<Record<Instinct, QuestKind[]>> = {
   bold: ['eliteBeast', 'demonHunt', 'escort'],
   righteous: ['defendVillage', 'demonHunt', 'escort', 'sectDuty'],
+  curious: ['delivery', 'escort', 'herbs', 'mining'],
+  vengeful: ['eliteBeast', 'demonHunt', 'hunt'],
+  lazy: ['sectDuty', 'delivery', 'herbs'],
+  ambitious: ['eliteBeast', 'demonHunt', 'defendVillage'],
 };

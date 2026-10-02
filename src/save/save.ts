@@ -6,7 +6,7 @@ import { countDream, emptyStats } from '../engine/sim.ts';
 import type { DreamSummary, GameState, Life } from '../engine/types.ts';
 
 export const SAVE_KEY = 'zrpg.save';
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 export interface SaveFile {
   version: number;
@@ -104,6 +104,14 @@ const migrations: Record<number, (old: SaveFile) => SaveFile> = {
       countDream(s.stats, { instinct: summary.instinct ?? s.setup.instinct, bossesKilled: [] } as unknown as Life, summary);
     }
     return { ...old, version: 9, state: s as GameState };
+  },
+  // v9 → v10: secondary instincts, grudges, ranks in the sect, curious trips into the next region.
+  9: (old) => {
+    const s = old.state as any;
+    s.setup.secondary = null;
+    Object.assign(s.life, { secondary: null, grudge: null, sectRank: 0 });
+    s.life.trip.peek = false;
+    return { ...old, version: 10, state: s as GameState };
   },
 };
 

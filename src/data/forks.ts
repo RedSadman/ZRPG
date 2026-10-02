@@ -29,8 +29,8 @@ export const FORKS: ForkDef[] = [
     minLevel: 1,
     maxLevel: 99,
     options: [
-      { key: 'buy', instincts: ['bold'] },
-      { key: 'refuse', instincts: ['cautious'] },
+      { key: 'buy', instincts: ['bold', 'curious', 'ambitious'] },
+      { key: 'refuse', instincts: ['cautious', 'lazy', 'vengeful'] },
       { key: 'rob', instincts: ['greedy'] },
       { key: 'bow', instincts: ['righteous'] },
     ],
@@ -41,9 +41,9 @@ export const FORKS: ForkDef[] = [
     minLevel: 0,
     maxLevel: 99,
     options: [
-      { key: 'help', instincts: ['righteous', 'bold'] },
+      { key: 'help', instincts: ['righteous', 'bold', 'curious', 'ambitious'] },
       { key: 'rob', instincts: ['greedy'] },
-      { key: 'pass', instincts: ['cautious'] },
+      { key: 'pass', instincts: ['cautious', 'lazy', 'vengeful'] },
     ],
   },
   {
@@ -52,8 +52,8 @@ export const FORKS: ForkDef[] = [
     minLevel: 1,
     maxLevel: 99,
     options: [
-      { key: 'accept', instincts: ['bold', 'righteous'] },
-      { key: 'refuse', instincts: ['cautious', 'greedy'] },
+      { key: 'accept', instincts: ['bold', 'righteous', 'vengeful', 'ambitious', 'curious'] },
+      { key: 'refuse', instincts: ['cautious', 'greedy', 'lazy'] },
       { key: 'bribe', instincts: [] },
     ],
   },
@@ -63,9 +63,9 @@ export const FORKS: ForkDef[] = [
     minLevel: 10,
     maxLevel: 99,
     options: [
-      { key: 'enter', instincts: ['bold'] },
-      { key: 'lurk', instincts: ['greedy'] },
-      { key: 'skip', instincts: ['cautious', 'righteous'] },
+      { key: 'enter', instincts: ['bold', 'curious', 'ambitious'] },
+      { key: 'lurk', instincts: ['greedy', 'vengeful'] },
+      { key: 'skip', instincts: ['cautious', 'righteous', 'lazy'] },
     ],
   },
   {
@@ -76,8 +76,8 @@ export const FORKS: ForkDef[] = [
     zone: 'azureFoothills',
     unlessKnown: 'oldZhangCave',
     options: [
-      { key: 'enter', instincts: ['bold', 'greedy'] },
-      { key: 'remember', instincts: ['cautious', 'righteous'] },
+      { key: 'enter', instincts: ['bold', 'greedy', 'curious', 'ambitious'] },
+      { key: 'remember', instincts: ['cautious', 'righteous', 'lazy', 'vengeful'] },
     ],
   },
   {
@@ -88,8 +88,8 @@ export const FORKS: ForkDef[] = [
     zone: 'thousandBeastForest',
     unlessKnown: 'hiddenSpring',
     options: [
-      { key: 'meditate', instincts: ['bold', 'greedy', 'righteous'] },
-      { key: 'mark', instincts: ['cautious'] },
+      { key: 'meditate', instincts: ['bold', 'greedy', 'righteous', 'lazy', 'ambitious', 'vengeful'] },
+      { key: 'mark', instincts: ['cautious', 'curious'] },
     ],
   },
 ];

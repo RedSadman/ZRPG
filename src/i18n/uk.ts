@@ -450,7 +450,19 @@ export const uk: Messages = {
     instinctRow: (dreams, avg) => `снів: ${dreams}, середня оцінка ${avg}`,
     chronicleHint: (n) => `Останні сни: ${n}. Натисни на сон, щоб згадати подробиці.`,
     carriedOut: (title) => `Винесено зі сну: ${title}`,
+    secondary: 'Другорядний інстинкт',
+    noSecondary: 'Немає',
+    sectRank: 'Ранг у секті',
+    grudge: 'Борг',
+    nextRank: (rank, realm, rep) => `Далі: ${rank} — потрібні ${realm} і репутація ${rep}`,
   },
+  sectRank: (rank, c) =>
+    [
+      c.g('зовнішній учень', 'зовнішня учениця'),
+      c.g('внутрішній учень', 'внутрішня учениця'),
+      c.g('старший брат', 'старша сестра'),
+      'старійшина',
+    ][rank] ?? 'старійшина',
   instincts: {
     cautious: {
       name: 'Обережний',
@@ -465,6 +477,13 @@ export const uk: Messages = {
       name: 'Праведний',
       desc: 'Допомагає людям і секті, ненавидить демонів, іноді відмовляється від незаслуженої плати',
     },
+    curious: {
+      name: 'Цікавий',
+      desc: 'Сходить зі стежки, частіше натрапляє на таємниці й інколи забрідає туди, куди ще зарано',
+    },
+    vengeful: { name: 'Мстивий', desc: 'Пам’ятає кожного, від кого втік, і рано чи пізно повертається по борг' },
+    lazy: { name: 'Ледачий', desc: 'Короткі мандри, довгі медитації, найлегша робота. Тікати з бою — теж лінь' },
+    ambitious: { name: 'Честолюбний', desc: 'Женеться за славою й рангом у секті: дуелі, елітні завдання, боси' },
   },
   questDesc: (q, c) => {
     switch (q.kind) {
@@ -493,6 +512,10 @@ export const uk: Messages = {
     bold: 'те, що загартує найбільше',
     greedy: 'найвигідніше',
     righteous: 'те, що допоможе людям',
+    curious: 'те, що веде в нові місця',
+    vengeful: 'те, де можна звести рахунки',
+    lazy: 'найлегше',
+    ambitious: 'те, що принесе славу',
   },
   questReasonPlain: 'те, що було під силу',
   startPlaces: {
@@ -558,7 +581,8 @@ export const uk: Messages = {
         heavenly: `побачив твій ${root} духовний корінь і впустив люльку`,
       }[e.root];
       const elder = c.m.startPlaces[e.start ?? 'azureCloudSect']!.elder;
-      const instinct = e.instinct ? ` Інстинкт — ${c.m.instincts[e.instinct].name.toLowerCase()}.` : '';
+      const streak = e.secondary ? ` (і трохи ${c.m.instincts[e.secondary].name.toLowerCase()})` : '';
+      const instinct = e.instinct ? ` Інстинкт — ${c.m.instincts[e.instinct].name.toLowerCase()}${streak}.` : '';
       return `Тобі ${c.age(e.ageMonths)}. ${elder} ${reaction}. Твій шлях — ${c.m.paths[e.path]}.${instinct}`;
     },
     fight: (e, c) => {
@@ -599,6 +623,10 @@ export const uk: Messages = {
           );
         case 'ambushed':
           return `${age} Ти ${c.g('намагався', 'намагалася')} обійти ${foe.acc}, але ${c.eg(e.enemy, 'він', 'вона')} тебе ${c.eg(e.enemy, 'наздогнав', 'наздогнала')}. Якимось дивом ти ${c.g('переміг', 'перемогла')}.`;
+        case 'revenge':
+          return (e.years ?? 0) > 0
+            ? `${age} Через ${c.age((e.years ?? 0) * 12)} ти ${c.g('знайшов', 'знайшла')} ${foe.acc} — і ${c.g('повернув', 'повернула')} борг.`
+            : `${age} Ти ${c.g('наздогнав', 'наздогнала')} ${foe.acc} того ж року — і ${c.g('повернув', 'повернула')} борг.`;
         case 'escaped':
           return c.vary(
             `${age} ${cap(foe.nom)} уже ${c.eg(e.enemy, 'заносив', 'заносила')} останній удар, коли ти ${c.g('розірвав', 'розірвала')} талісман Тисячі Лі — і ${c.g('опинився', 'опинилася')} за сто лі звідти, ледь ${c.g('живий', 'жива')}.`,
@@ -682,6 +710,22 @@ export const uk: Messages = {
             : c.vary(' Дещо пішло в брак.', ' Один казан, щоправда, вибухнув.');
       return `${age} У секті ти ${joinList(deeds)}.${loss}`;
     },
+    explore: (e, c) =>
+      c.vary(
+        `Тобі ${c.age(e.ageMonths)}. Цікавість завела тебе далі, ніж слід: тепер ти полюєш ${c.m.zones[e.zone]!.in}, куди тобі ще зарано.`,
+        `Тобі ${c.age(e.ageMonths)}. «Тільки гляну, що за тим пагорбом», — ${c.g('подумав', 'подумала')} ти й ${c.g('опинився', 'опинилася')} ${c.m.zones[e.zone]!.in}.`,
+      ),
+    grudge: (e, c) => {
+      const foe = c.enemy(e.enemy, e.name);
+      return `Тобі ${c.age(e.ageMonths)}. Ти ${c.g('запам’ятав', 'запам’ятала')} ${foe.acc}. Колись ви ще зустрінетеся.`;
+    },
+    promotion: (e, c) =>
+      e.rank >= 3
+        ? `Тобі ${c.age(e.ageMonths)}. Секта назвала тебе старійшиною. Тепер молодші вклоняються тобі — і пліткують за спиною.`
+        : c.vary(
+            `Тобі ${c.age(e.ageMonths)}. Секта визнала і твою силу, і твої заслуги: тепер ти ${c.m.sectRank(e.rank, c)}.`,
+            `Тобі ${c.age(e.ageMonths)}. Старійшини довго сперечалися, але сила й заслуги переважили: тепер ти ${c.m.sectRank(e.rank, c)}.`,
+          ),
     shop: (e, c) => {
       const age = `Тобі ${c.age(e.ageMonths)}.`;
       switch (e.action) {

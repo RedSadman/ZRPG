@@ -1,6 +1,5 @@
 import { GATHERING_PILL } from '../data/crafts.ts';
 import { ENEMIES } from '../data/enemies.ts';
-import { INSTINCTS } from '../data/instincts.ts';
 import { BLESSING_LUCK, HIDDEN_SPRING_MIN_LEVEL, HIDDEN_SPRING_QI, SECRETS, startPlace } from '../data/knowledge.ts';
 import { PATHS } from '../data/paths.ts';
 import { BREAKTHROUGH_PILLS, HEALING_PILL } from '../data/pills.ts';
@@ -8,7 +7,7 @@ import { MAX_LEVEL, MONTHS_PER_TICK, QI_COST_MULT, TRIBULATION_FROM_LEVEL } from
 import { RIVAL_SURNAMES } from '../data/rivals.ts';
 import { TALENT_EFFECTS, THUNDER_SCAR } from '../data/talents.ts';
 import { COMBAT_TECHNIQUES, CULTIVATION_TECHNIQUES, LIBRARY, MAX_COMBAT_TECHNIQUES } from '../data/techniques.ts';
-import { zoneFor, type ZoneDef } from '../data/zones.ts';
+import { ZONES, zoneFor, type ZoneDef } from '../data/zones.ts';
 import { ELITE_ATK, ELITE_HP, chooseQuest, postBoard, questFoe, questNote } from './board.ts';
 import { enemyCombatant, fight, heroCombatant } from './combat.ts';
 import {
@@ -28,6 +27,7 @@ import { isRealmGate, lifespanMonths, monthsPerTick, qiToReach, realmOf, stageOf
 import { itemPower, makeItem, rollRank, sellValue, starterItem, takeItem } from './loot.ts';
 import { between, chance, nextInt, pick, pickWeighted, type Rng } from './rng.ts';
 import type { Activity, DeathCause, DreamSetup, FightNote, GameEvent, GameState, Hero, Life, Quest, Slot } from './types.ts';
+import { temperament } from './temperament.ts';
 
 export const START_AGE_MONTHS = 16 * 12;
 
@@ -64,6 +64,10 @@ const LEVEL_OFFSETS = [
   { offset: 6, weight: 1.5 },
   { offset: 9, weight: 0.5 },
 ];
+/** Chance per trip, at full curiosity, to wander into the next region. */
+const PEEK_CHANCE = 0.15;
+/** Chance per hunting month to go looking for the one you hold a grudge against. */
+const GRUDGE_HUNT_CHANCE = 0.25;
 /** Share of the next level's qi gained per level of difference when beating a stronger foe. */
 const BATTLE_INSIGHT = 0.06;
 /** In a task's fights the hero accepts odds this much worse than usual. */
@@ -75,7 +79,7 @@ const ARMORY_SLOTS: Slot[] = ['weapon', 'robe', 'bracers', 'boots'];
 const ARMORY_STOCK_CHANCE = 0.6;
 
 export function defaultSetup(hero: Hero): DreamSetup {
-  return { instinct: 'cautious', path: hero.path, start: 'azureCloudSect', blessing: false };
+  return { instinct: 'cautious', secondary: null, path: hero.path, start: 'azureCloudSect', blessing: false };
 }
 
 /** A new dream starts from everything the real hero has, shaped by the player's setup for this dream. */
@@ -111,7 +115,7 @@ export function newLife(hero: Hero, n: number, setup: DreamSetup = defaultSetup(
     injuryMonths: 0,
     bossesKilled: [],
     wallHit: false,
-    trip: { months: 0, kills: 0, herbs: 0, ore: 0, avoided: 0, bossTried: false, rivalNoted: false },
+    trip: newTrip(),
     totals: { fights: 0, wins: 0, flees: 0, kills: 0 },
     highlights: [],
     death: null,
@@ -119,6 +123,9 @@ export function newLife(hero: Hero, n: number, setup: DreamSetup = defaultSetup(
     startProgress: totalProgress(hero.level, hero.qi),
     path: setup.path,
     instinct: setup.instinct,
+    secondary: setup.secondary && setup.secondary !== setup.instinct ? setup.secondary : null,
+    grudge: null,
+    sectRank: 0,
     start: place.key,
     luckBonus: setup.blessing ? BLESSING_LUCK : 0,
     fork: null,
@@ -131,6 +138,23 @@ export function newLife(hero: Hero, n: number, setup: DreamSetup = defaultSetup(
   };
   life.hp = maxHp(life);
   return life;
+}
+
+function newTrip(): Life['trip'] {
+  return { months: 0, kills: 0, herbs: 0, ore: 0, avoided: 0, bossTried: false, rivalNoted: false, peek: false };
+}
+
+/** Where the hero hunts this trip: the region of their level, or — on a curious trip — the next one. */
+export function huntingZone(life: Life): ZoneDef {
+  const home = zoneFor(life.level);
+  if (!life.trip.peek) return home;
+  return ZONES[ZONES.indexOf(home) + 1] ?? home;
+}
+
+/** The lowest level a region is meant for. */
+function zoneFloor(zone: ZoneDef): number {
+  const i = ZONES.indexOf(zone);
+  return i <= 0 ? 0 : ZONES[i - 1]!.maxLevel + 1;
 }
 
 /**
@@ -243,6 +267,7 @@ function sectMonth(s: GameState, rng: Rng, emit: Emit): void {
   const income = collectTill(life);
 
   settleQuest(s, rng, emit);
+  checkPromotion(life, emit);
   learnInLibrary(life, emit);
   visitArmory(s, rng);
   const work = visitWorkshop(s, rng);
@@ -297,6 +322,29 @@ function sectMonth(s: GameState, rng: Rng, emit: Emit): void {
   }
 }
 
+/**
+ * What each rank in the sect asks for: inner disciple, senior brother or sister, elder. Deeds alone are not
+ * enough — a sect promotes the strong — and strength alone is not enough either.
+ */
+export const SECT_RANKS = [
+  { reputation: 5, level: 10 }, // Foundation Establishment
+  { reputation: 15, level: 19 }, // Golden Core
+  { reputation: 30, level: 37 }, // Spirit Transformation
+];
+
+/** Whether the hero has earned the next rank; once given, a title is not taken back. */
+export function earnsNextRank(life: Pick<Life, 'sectRank' | 'reputation' | 'level'>): boolean {
+  const next = SECT_RANKS[life.sectRank];
+  return next !== undefined && life.reputation >= next.reputation && life.level >= next.level;
+}
+
+function checkPromotion(life: Life, emit: Emit): void {
+  while (earnsNextRank(life)) {
+    life.sectRank += 1;
+    emit({ kind: 'promotion', ageMonths: life.ageMonths, rank: life.sectRank }, 4);
+  }
+}
+
 /** Pays out a finished task, or writes off one that the last trip failed. */
 function settleQuest(s: GameState, rng: Rng, emit: Emit): void {
   const { life } = s;
@@ -310,7 +358,7 @@ function settleQuest(s: GameState, rng: Rng, emit: Emit): void {
     return;
   }
   // The righteous sometimes refuse money they feel they have not earned; heaven notices.
-  const declined = quest.stones > 0 && chance(rng, INSTINCTS[life.instinct].declineChance);
+  const declined = quest.stones > 0 && chance(rng, temperament(life).declineChance);
   if (declined) life.karma += 2;
   else life.stones += quest.stones;
   life.contribution += quest.contribution;
@@ -365,7 +413,7 @@ export function addTechnique(life: Life, key: string): void {
 function visitArmory(s: GameState, rng: Rng): void {
   const { life } = s;
   const price = Math.round((6 + 4 * life.level) * startPlace(life.start).armoryPriceMult);
-  const lag = INSTINCTS[life.instinct].armoryLag;
+  const lag = temperament(life).armoryLag;
   for (const slot of ARMORY_SLOTS) {
     if (life.stones < price) return;
     if (!chance(rng, ARMORY_STOCK_CHANCE)) continue;
@@ -381,20 +429,28 @@ function visitArmory(s: GameState, rng: Rng): void {
 // --- Travel and hunting -----------------------------------------------------
 
 function travelMonth(s: GameState, rng: Rng, emit: Emit): void {
-  const zone = zoneFor(s.life.level);
+  const { life } = s;
+  const zone = zoneFor(life.level);
   if (maybeFork(s, rng, emit)) return;
   if (chance(rng, TRAVEL_ENCOUNTER_CHANCE)) {
     const humans = zone.enemies.filter((e) => ENEMIES[e.key]!.kind === 'human');
-    encounter(s, rng, emit, pickWeighted(rng, humans).key, rollEnemyLevel(rng, s.life.level, zone));
-    if (s.life.death || s.life.activity !== 'travel') return;
+    encounter(s, rng, emit, pickWeighted(rng, humans).key, rollEnemyLevel(rng, life.level, zone));
+    if (life.death || life.activity !== 'travel') return;
   }
-  go(s.life, 'hunt');
+  // A curious dreamer sometimes walks on past the usual grounds, into a region meant for those stronger.
+  const next = ZONES[ZONES.indexOf(zone) + 1];
+  if (next && !life.quest?.inSect && chance(rng, PEEK_CHANCE * temperament(life).traits.curiosity)) {
+    life.trip.peek = true;
+    emit({ kind: 'explore', ageMonths: life.ageMonths, zone: next.key }, 3);
+  }
+  go(life, 'hunt');
 }
 
 function huntMonth(s: GameState, rng: Rng, emit: Emit): void {
   const { hero, life } = s;
-  const zone = zoneFor(life.level);
-  const ins = INSTINCTS[life.instinct];
+  const home = zoneFor(life.level);
+  const zone = huntingZone(life);
+  const ins = temperament(life);
   const quest = life.quest;
   life.trip.months += 1;
   const hpMax = maxHp(life);
@@ -402,7 +458,7 @@ function huntMonth(s: GameState, rng: Rng, emit: Emit): void {
   life.qi = Math.min(qiToReach(life.level + 1), life.qi + qiPerMonth(hero, life) * HUNT_QI_SHARE);
   if (quest && !quest.failed) quest.monthsLeft -= 1;
 
-  if (rememberOldZhangCave(s, zone, emit)) return;
+  if (rememberOldZhangCave(s, home, emit)) return;
   if (maybeFork(s, rng, emit)) return;
 
   const herbChance = (PATHS[life.path].herbChance + startPlace(life.start).herbBonus) * (quest?.kind === 'herbs' ? 2 : 1);
@@ -412,13 +468,19 @@ function huntMonth(s: GameState, rng: Rng, emit: Emit): void {
     life.trip.herbs += 1;
   }
 
-  if (bossIsDue(s, zone, rng)) {
+  if (!life.trip.peek && bossIsDue(s, home, rng)) {
     life.trip.bossTried = true;
-    encounter(s, rng, emit, zone.boss, life.level, { committed: true });
+    encounter(s, rng, emit, home.boss, life.level, { committed: true });
+  } else if (revengeIsDue(s, rng)) {
+    const g = life.grudge!;
+    const years = Math.floor((life.ageMonths - g.ageMonths) / 12);
+    if (encounter(s, rng, emit, g.enemy, g.level, { committed: true, revengeYears: years, ...(g.name ? { name: g.name } : {}) }) === 'won') {
+      life.grudge = null;
+    }
   } else if (quest && !quest.failed && quest.fightsLeft > 0 && chance(rng, quest.fightsLeft / Math.max(1, quest.monthsLeft + 1))) {
     questFight(s, rng, emit, quest);
   } else if (chance(rng, quest?.peaceful ? PEACEFUL_ENCOUNTER_CHANCE : ENCOUNTER_CHANCE)) {
-    encounter(s, rng, emit, pickWeighted(rng, zone.enemies).key, rollEnemyLevel(rng, life.level, zone));
+    encounter(s, rng, emit, pickWeighted(rng, zone.enemies).key, rollEnemyLevel(rng, Math.max(life.level, zoneFloor(zone)), zone));
   }
   if (life.death || life.activity !== 'hunt') return;
 
@@ -445,10 +507,19 @@ function huntMonth(s: GameState, rng: Rng, emit: Emit): void {
   }
 }
 
+/** The one who got away is sought out once the hero believes they can take them now. */
+function revengeIsDue(s: GameState, rng: Rng): boolean {
+  const { life } = s;
+  const g = life.grudge;
+  if (!g || !chance(rng, GRUDGE_HUNT_CHANCE)) return false;
+  const p = perceivedWin(life, heroCombatant(life, g.enemy), enemyCombatant(ENEMIES[g.enemy]!, g.level), rng);
+  return p >= temperament(life).engageAt;
+}
+
 /** The zone's boss is hunted once the instinct feels ready, and only if the hero believes in the win. */
 function bossIsDue(s: GameState, zone: ZoneDef, rng: Rng): boolean {
   const { life } = s;
-  const ins = INSTINCTS[life.instinct];
+  const ins = temperament(life);
   if (zone.boss === '' || life.bossesKilled.includes(zone.boss) || life.trip.bossTried || life.monthsInActivity < 2) {
     return false;
   }
@@ -502,7 +573,7 @@ function returningMonth(s: GameState, emit: Emit): void {
       {
         kind: 'hunt',
         ageMonths: life.ageMonths,
-        zone: zoneFor(life.level).key,
+        zone: huntingZone(life).key,
         months: life.trip.months * monthsPerTick(life.level),
         kills,
         herbs,
@@ -512,7 +583,7 @@ function returningMonth(s: GameState, emit: Emit): void {
       1,
     );
   }
-  life.trip = { months: 0, kills: 0, herbs: 0, ore: 0, avoided: 0, bossTried: false, rivalNoted: false };
+  life.trip = newTrip();
   life.plan = 'meditate';
   go(life, 'sect');
 }
@@ -535,6 +606,10 @@ export interface EncounterOptions {
   elite?: boolean;
   /** Fork fights are narrated by the fork itself. */
   quiet?: boolean;
+  /** Going back for someone the hero once ran from, this many years later. */
+  revengeYears?: number;
+  /** The same rival as before, not a new one. */
+  name?: string;
 }
 
 export type EncounterResult = 'won' | 'fled' | 'avoided' | 'rescued' | 'lost' | 'beaten' | 'escaped';
@@ -549,11 +624,22 @@ export function encounter(
 ): EncounterResult {
   const { life } = s;
   const def = ENEMIES[enemyKey]!;
-  const ins = INSTINCTS[life.instinct];
-  const name = def.rival ? pick(rng, RIVAL_SURNAMES) : undefined;
+  const ins = temperament(life);
+  const name = opts.name ?? (def.rival ? pick(rng, RIVAL_SURNAMES) : undefined);
   const note = (n: FightNote, priority: number) => {
     if (opts.quiet) return;
-    emit({ kind: 'fight', ageMonths: life.ageMonths, enemy: enemyKey, enemyLevel: level, note: n, ...(name ? { name } : {}) }, priority);
+    emit(
+      {
+        kind: 'fight',
+        ageMonths: life.ageMonths,
+        enemy: enemyKey,
+        enemyLevel: level,
+        note: n,
+        ...(name ? { name } : {}),
+        ...(n === 'revenge' ? { years: opts.revengeYears ?? 0 } : {}),
+      },
+      priority,
+    );
   };
 
   const me = heroCombatant(life, enemyKey);
@@ -570,10 +656,13 @@ export function encounter(
   let ambushed = false;
   let chose = false;
   if (!opts.committed) {
+    // An insult is not let pass by the vengeful, nor a chance for face by the ambitious.
+    const pride = def.rival ? 1 - 0.3 * ins.traits.vengeance - 0.2 * ins.traits.ambition : 1;
     const wanted =
-      (def.demonic ? ins.engageDemonAt : ins.engageAt - (def.stones > 0 ? ins.lootLust : 0)) * (opts.resolve ?? 1);
+      (def.demonic ? ins.engageDemonAt : ins.engageAt - (def.stones > 0 ? ins.lootLust : 0)) * (opts.resolve ?? 1) * pride;
     if (perceivedWin(life, me, foe, rng) < wanted) {
-      const slip = 0.55 + 0.02 * (me.agi - foe.agi) + 0.01 * effectiveStats(life).mind;
+      // The lazy cannot be bothered to run far.
+      const slip = (0.55 + 0.02 * (me.agi - foe.agi) + 0.01 * effectiveStats(life).mind) * (1 - 0.5 * ins.traits.sloth);
       if (chance(rng, Math.min(0.95, Math.max(0.15, slip)))) {
         if (odds < 0.5) note('sensed', realmOf(level) > realmOf(life.level) ? 5 : 3);
         else life.trip.avoided += 1;
@@ -600,6 +689,7 @@ export function encounter(
       if (opts.lethal === false) {
         life.hp = 1;
         life.injuryMonths = Math.max(life.injuryMonths, 6);
+        holdGrudge(s, rng, emit, enemyKey, level, name, def.boss);
         return 'beaten';
       }
       if (life.talismans.escape > 0) {
@@ -607,6 +697,7 @@ export function encounter(
         life.talismans.escape -= 1;
         life.hp = 1;
         note('escaped', 6);
+        holdGrudge(s, rng, emit, enemyKey, level, name, def.boss);
         go(life, 'returning');
         return 'escaped';
       }
@@ -615,9 +706,11 @@ export function encounter(
     case 'fled':
       life.totals.flees += 1;
       note('fled', 2);
+      holdGrudge(s, rng, emit, enemyKey, level, name, def.boss);
       return 'fled';
     case 'rescued':
       note('rescued', 7);
+      holdGrudge(s, rng, emit, enemyKey, level, name, def.boss);
       go(life, 'returning');
       return 'rescued';
     case 'won':
@@ -628,6 +721,8 @@ export function encounter(
   life.totals.kills += 1;
   life.trip.kills += 1;
   if (def.demonic) life.karma += 1;
+  // Beating an arrogant young master in front of witnesses is worth face in the sect.
+  if (def.rival) life.reputation += 1;
   life.valor += Math.max(0, level - life.level);
   if (level > life.level) {
     // Insight from beating someone stronger: the bold grow on danger.
@@ -646,7 +741,8 @@ export function encounter(
       life.discoveries.push(secret);
       emit({ kind: 'secret', ageMonths: life.ageMonths, secret }, 9);
     }
-  } else if (ambushed && odds < 0.5) note('ambushed', 4);
+  } else if (opts.revengeYears !== undefined) note('revenge', 6);
+  else if (ambushed && odds < 0.5) note('ambushed', 4);
   else if (def.rival && !life.trip.rivalNoted) {
     // One arrogant young master per trip is a story; five is a chore.
     life.trip.rivalNoted = true;
@@ -671,6 +767,14 @@ export function encounter(
     if (equipped && rank > 0 && !opts.quiet) emit({ kind: 'loot', ageMonths: life.ageMonths, item }, 2 + rank * 2);
   }
   return 'won';
+}
+
+/** The vengeful remember who made them run. One grudge at a time; bosses are a different matter. */
+function holdGrudge(s: GameState, rng: Rng, emit: Emit, enemy: string, level: number, name: string | undefined, boss?: boolean): void {
+  const { life } = s;
+  if (life.death || life.grudge || boss || !chance(rng, temperament(life).traits.vengeance)) return;
+  life.grudge = { enemy, level, ageMonths: life.ageMonths, ...(name ? { name } : {}) };
+  emit({ kind: 'grudge', ageMonths: life.ageMonths, enemy, ...(name ? { name } : {}) }, 2);
 }
 
 // --- Cultivation ------------------------------------------------------------
@@ -712,7 +816,7 @@ function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
   }
   life.qi = Math.min(need, life.qi + gain);
   if (life.qi < need) {
-    if (life.monthsInActivity >= MAX_MEDITATION_MONTHS) {
+    if (life.monthsInActivity >= MAX_MEDITATION_MONTHS * (1 + temperament(life).traits.sloth)) {
       life.plan = 'hunt';
       go(life, 'sect');
     }
@@ -723,7 +827,7 @@ function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
     // The cautious will not knock on a realm's gate without a pill in hand, for a while at least.
     const pill = BREAKTHROUGH_PILLS[next];
     const waiting =
-      INSTINCTS[life.instinct].waitsForPill && pill && life.pills.breakthrough !== pill.key && life.pillWaits < MAX_PILL_WAITS;
+      temperament(life).waitsForPill && pill && life.pills.breakthrough !== pill.key && life.pillWaits < MAX_PILL_WAITS;
     if (waiting) {
       if (life.pillWaits === 0) emit({ kind: 'pillWait', ageMonths: life.ageMonths, level: next }, 2);
       life.pillWaits += 1;

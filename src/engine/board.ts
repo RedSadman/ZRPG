@@ -1,5 +1,4 @@
 import { ENEMIES } from '../data/enemies.ts';
-import { INSTINCTS } from '../data/instincts.ts';
 import { BOARD_SIZE, QUESTS, REPUTATION_PAY, baseContribution, baseStones, type QuestDef } from '../data/quests.ts';
 import { zoneFor } from '../data/zones.ts';
 import { enemyCombatant, heroCombatant } from './combat.ts';
@@ -7,10 +6,13 @@ import { willingToForge } from './crafts.ts';
 import { perceivedWin } from './judgement.ts';
 import { nextFloat, nextInt, pickWeighted, type Rng } from './rng.ts';
 import type { Life, Quest, QuestNote } from './types.ts';
+import { temperament } from './temperament.ts';
 
 /** Elite beasts are this much tougher than their kin. */
 export const ELITE_HP = 1.8;
 export const ELITE_ATK = 1.2;
+/** Each rank in the sect adds this share to what tasks pay. */
+export const RANK_PAY = 0.1;
 
 /** A few tasks of different kinds that the sect posts this visit. */
 export function postBoard(life: Life, rng: Rng): Quest[] {
@@ -27,7 +29,8 @@ export function postBoard(life: Life, rng: Rng): Quest[] {
 
 export function makeQuest(def: QuestDef, life: Life, rng: Rng): Quest {
   const L = life.level;
-  const pay = Math.min(2, 1 + REPUTATION_PAY * Math.max(0, life.reputation));
+  // Standing raises the pay, and so does a title in the sect.
+  const pay = Math.min(2, 1 + REPUTATION_PAY * Math.max(0, life.reputation)) * (1 + RANK_PAY * life.sectRank);
   const zone = zoneFor(L);
   const targets = zone.enemies.filter((e) => !ENEMIES[e.key]!.rival && !ENEMIES[e.key]!.demonic);
   const fights = nextInt(rng, def.fights[0], def.fights[1]);
@@ -74,7 +77,7 @@ export function questFoe(quest: Quest, life: Life, rng: Rng): string {
  * pull it off, minus how much it fears dying on the way.
  */
 export function chooseQuest(board: Quest[], life: Life, rng: Rng): Quest {
-  const ins = INSTINCTS[life.instinct];
+  const ins = temperament(life);
   let options = board;
   if (ins.wantsPay) {
     const avg = board.reduce((sum, q) => sum + q.stones, 0) / board.length;
@@ -101,7 +104,7 @@ export function chooseQuest(board: Quest[], life: Life, rng: Rng): Quest {
 /** How the hero rates one of the task's fights: against the worst, an average or the easiest foe it could send. */
 function fightOdds(quest: Quest, life: Life, rng: Rng): number {
   if (quest.fights === 0) return 1;
-  const ins = INSTINCTS[life.instinct];
+  const ins = temperament(life);
   const L = life.level;
   const [low, high] = quest.offset;
   const offset = ins.plansFor === 'worst' ? high : ins.plansFor === 'best' ? low : Math.round((low + high) / 2);
@@ -116,7 +119,7 @@ function fightOdds(quest: Quest, life: Life, rng: Rng): number {
 }
 
 function questUtility(quest: Quest, life: Life, odds: number, rng: Rng): number {
-  const ins = INSTINCTS[life.instinct];
+  const ins = temperament(life);
   const L = life.level;
   const success = odds ** quest.fights;
   const danger = (1 - success) * 0.5;
@@ -128,7 +131,10 @@ function questUtility(quest: Quest, life: Life, odds: number, rng: Rng): number 
     ins.values.power * (quest.itemChance * 2 + Math.max(0, offsetMid) * 0.15 + (quest.ore && willingToForge(life) ? 1 : 0));
   // A pinch of randomness so equal options do not always resolve the same way.
   const fights = ins.fightTaste * quest.fights;
-  return success * gain + fights - ins.riskAversion * danger + nextFloat(rng) * 0.01;
+  // The ambitious weigh the standing a task brings; the lazy, how long it keeps them from their cushion.
+  const standing = ins.traits.ambition * 0.6 * (quest.elite || quest.foes === 'demons' ? 2 : 1);
+  const effort = ins.traits.sloth * (quest.inSect ? 1 : -0.15 * quest.monthsLeft);
+  return success * (gain + standing) + fights + effort - ins.riskAversion * danger + nextFloat(rng) * 0.01;
 }
 
 export function questNote(quest: Quest): QuestNote {

@@ -21,6 +21,9 @@ const HERBS: PluralForms = { one: 'a bundle of spirit herbs', other: '{n} bundle
 const ORE: PluralForms = { one: 'a chunk of spirit ore', other: '{n} chunks of spirit ore' };
 const CLASHES: PluralForms = { one: 'one clash', other: '{n} clashes' };
 const BOLTS: PluralForms = { one: 'a bolt', other: '{n} bolts' };
+const YEARS: PluralForms = { one: 'a year', other: '{n} years' };
+/** "an elder", "a senior sister". */
+const withArticle = (noun: string) => `${/^[aeiou]/i.test(noun) ? 'an' : 'a'} ${noun}`;
 /** "grey spirit wolf" → "grey spirit wolves", good enough for the beasts in this world. */
 const pluralNoun = (noun: string) =>
   noun.endsWith('wolf') ? `${noun.slice(0, -1)}ves` : noun.endsWith('s') ? noun : `${noun}s`;
@@ -324,12 +327,23 @@ export const en: Messages = {
     instinctRow: (dreams, avg) => `${dreams} dreams, average score ${avg}`,
     chronicleHint: (n) => `The last ${n} dreams. Click a dream to recall the details.`,
     carriedOut: (title) => `Carried out of the dream: ${title}`,
+    secondary: 'Secondary instinct',
+    noSecondary: 'None',
+    sectRank: 'Rank in the sect',
+    grudge: 'Debt to settle',
+    nextRank: (rank, realm, rep) => `Next: ${rank} — needs ${realm} and reputation ${rep}`,
   },
+  sectRank: (rank, c) =>
+    ['outer disciple', 'inner disciple', c.g('senior brother', 'senior sister'), 'elder'][rank] ?? 'elder',
   instincts: {
     cautious: { name: 'Cautious', desc: 'Avoids any fight it is not sure to win. Lives longer, but misses a lot' },
     bold: { name: 'Bold', desc: 'Overrates itself and grabs every chance to grow stronger. Often dies young' },
     greedy: { name: 'Greedy', desc: 'Takes only profitable work, hunts until the bag is full, hates to spend' },
     righteous: { name: 'Righteous', desc: 'Helps people and the sect, hates demons, sometimes refuses unearned pay' },
+    curious: { name: 'Curious', desc: 'Strays off the path, stumbles on more secrets, and sometimes wanders where it is too early to go' },
+    vengeful: { name: 'Vengeful', desc: 'Remembers everyone it ran from, and sooner or later comes back to settle the debt' },
+    lazy: { name: 'Lazy', desc: 'Short trips, long meditations, the easiest work. Running from a fight is too much effort too' },
+    ambitious: { name: 'Ambitious', desc: 'Chases glory and rank in the sect: duels, elite tasks, bosses' },
   },
   questDesc: (q, c) => {
     switch (q.kind) {
@@ -358,6 +372,10 @@ export const en: Messages = {
     bold: 'the one that would temper you most',
     greedy: 'the best paid',
     righteous: 'the one that helps people',
+    curious: 'what leads somewhere new',
+    vengeful: 'what settles scores',
+    lazy: 'the easiest',
+    ambitious: 'what brings glory',
   },
   questReasonPlain: 'what was within reach',
   startPlaces: {
@@ -422,7 +440,8 @@ export const en: Messages = {
         heavenly: 'saw your heavenly spirit root and dropped his pipe',
       }[e.root];
       const elder = c.m.startPlaces[e.start ?? 'azureCloudSect']!.elder;
-      const instinct = e.instinct ? ` Your instinct: ${c.m.instincts[e.instinct].name.toLowerCase()}.` : '';
+      const streak = e.secondary ? `, with a ${c.m.instincts[e.secondary].name.toLowerCase()} streak` : '';
+      const instinct = e.instinct ? ` Your instinct: ${c.m.instincts[e.instinct].name.toLowerCase()}${streak}.` : '';
       return `You are ${c.age(e.ageMonths)}. ${elder} ${reaction}. You follow ${c.m.paths[e.path]}.${instinct}`;
     },
     fight: (e, c) => {
@@ -463,6 +482,10 @@ export const en: Messages = {
           );
         case 'ambushed':
           return `${age} You tried to slip past ${the(foe)}, but it caught up with you. Somehow, you won.`;
+        case 'revenge':
+          return (e.years ?? 0) > 0
+            ? `${age} ${cap(c.plural(e.years ?? 0, YEARS))} later you found ${the(foe)} again — and paid back the debt.`
+            : `${age} You caught up with ${the(foe)} that same year — and paid back the debt.`;
         case 'escaped':
           return c.vary(
             `${age} ${cap(the(foe))} was already raising the final blow when you tore your Thousand-Li talisman — and found yourself a hundred li away, barely alive.`,
@@ -543,6 +566,19 @@ export const en: Messages = {
             : c.vary(' Some of it was spoiled.', ' One cauldron did explode, though.');
       return `${age} At the sect you ${joinList(deeds)}.${loss}`;
     },
+    explore: (e, c) =>
+      c.vary(
+        `You are ${c.age(e.ageMonths)}. Curiosity got the better of you: now you hunt ${c.m.zones[e.zone]!.in}, where it is still too early for you to be.`,
+        `You are ${c.age(e.ageMonths)}. “Just a look over that hill,” you thought, and found yourself ${c.m.zones[e.zone]!.in}.`,
+      ),
+    grudge: (e, c) => `You are ${c.age(e.ageMonths)}. You will remember ${the(c.enemy(e.enemy, e.name))}. You will meet again.`,
+    promotion: (e, c) =>
+      e.rank >= 3
+        ? `You are ${c.age(e.ageMonths)}. The sect named you an elder. Now the young bow to you — and gossip behind your back.`
+        : c.vary(
+            `You are ${c.age(e.ageMonths)}. The sect recognised both your strength and your deeds: you are now ${withArticle(c.m.sectRank(e.rank, c))}.`,
+            `You are ${c.age(e.ageMonths)}. The elders argued for a long time, but strength and deeds won: you are now ${withArticle(c.m.sectRank(e.rank, c))}.`,
+          ),
     shop: (e, c) => {
       const age = `You are ${c.age(e.ageMonths)}.`;
       switch (e.action) {

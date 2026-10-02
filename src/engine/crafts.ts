@@ -14,7 +14,6 @@ import {
   type CraftKey,
   type Product,
 } from '../data/crafts.ts';
-import { INSTINCTS } from '../data/instincts.ts';
 import { startPlace } from '../data/knowledge.ts';
 import { PATHS, type PathKey } from '../data/paths.ts';
 import { BREAKTHROUGH_PILLS, HEALING_PILL } from '../data/pills.ts';
@@ -26,12 +25,13 @@ import { monthsPerTick, realmOf, stageOf } from './levels.ts';
 import { itemPower, makeItem, rollRank, takeItem } from './loot.ts';
 import { between, chance, type Rng } from './rng.ts';
 import type { Crafts, GameState, Hero, Item, Life, Materials, Slot, WorkshopBatch } from './types.ts';
+import { temperament } from './temperament.ts';
 
 const ALL_SLOTS: Slot[] = ['weapon', 'robe', 'bracers', 'boots', 'pendant', 'ring'];
 /** Whether this dreamer would stand at the forge at all: worth knowing when choosing work that brings ore. */
 export function willingToForge(life: Life): boolean {
   const odds = craftChance(Math.floor(life.crafts.forging), effectiveStats(life).mind) - FORGE.penalty;
-  return odds >= INSTINCTS[life.instinct].craftNerve;
+  return odds >= temperament(life).craftNerve;
 }
 
 /** A crafter keeps this many units of herbs and cores for the next visit (and ore for one forging); the rest is sold. */
@@ -119,7 +119,7 @@ export interface WorkshopResult {
 
 export function visitWorkshop(s: GameState, rng: Rng): WorkshopResult {
   const { life } = s;
-  const ins = INSTINCTS[life.instinct];
+  const ins = temperament(life);
   const mind = effectiveStats(life).mind;
   const unit = materialUnit(life.level);
   const odds = (craft: CraftKey, penalty = 0) => craftChance(Math.floor(life.crafts[craft]), mind) - penalty;
@@ -272,7 +272,7 @@ export function collectTill(life: Life): number {
 /** A born merchant buys a shop, then a bigger one, whenever the purse allows after the essentials. */
 export function investInShop(s: GameState, emit: Emit): void {
   const { life } = s;
-  if (!INSTINCTS[life.instinct].investor || life.shop.level >= SHOP.maxLevel) return;
+  if (!temperament(life).investor || life.shop.level >= SHOP.maxLevel) return;
   const price = nextShopPrice(life);
   if (life.stones < price + essentials(life)) return;
   life.stones -= price;
@@ -293,7 +293,7 @@ function essentials(life: Life): number {
  * merchant keeps back what the next shop costs.
  */
 export function buyGatheringPills(life: Life): void {
-  const ins = INSTINCTS[life.instinct];
+  const ins = temperament(life);
   let reserve = essentials(life);
   if (ins.investor && life.shop.level < SHOP.maxLevel) reserve += nextShopPrice(life);
   const price = gatheringPillPrice(life);

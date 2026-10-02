@@ -1,9 +1,9 @@
-import { INSTINCTS } from '../data/instincts.ts';
 import type { Combatant } from './combat.ts';
 import { effectiveStats } from './hero.ts';
 import { realmEdge } from './levels.ts';
 import { nextFloat, type Rng } from './rng.ts';
 import type { Life } from './types.ts';
+import { temperament } from './temperament.ts';
 
 /** Rounds of a fight that techniques usually last for; beyond that the qi pool runs dry. */
 const TYPICAL_ROUNDS = 8;
@@ -25,7 +25,7 @@ export function estimateWin(me: Combatant, foe: Combatant, pills = 0): number {
 export function perceivedWin(life: Life, me: Combatant, foe: Combatant, rng: Rng): number {
   const mind = effectiveStats(life).mind;
   const spread = Math.min(0.45, Math.max(0.08, 0.45 - 0.02 * mind));
-  const ratio = strengthRatio(me, foe, life.pills.healing) * INSTINCTS[life.instinct].selfImage * Math.exp(gaussian(rng) * spread);
+  const ratio = strengthRatio(me, foe, life.pills.healing) * temperament(life).selfImage * Math.exp(gaussian(rng) * spread);
   return oddsFromRatio(ratio);
 }
 

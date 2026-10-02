@@ -192,7 +192,15 @@ export interface Messages {
     instinctRow: (dreams: number, avgScore: number) => string;
     chronicleHint: (shown: number) => string;
     carriedOut: (title: string) => string;
+    secondary: string;
+    noSecondary: string;
+    sectRank: string;
+    grudge: string;
+    /** "Далі: старша сестра — Золоте Ядро й репутація 15". */
+    nextRank: (rank: string, realmGen: string, reputation: number) => string;
   };
+  /** Ranks in the sect, 0 to 3, as a lowercase noun for the hero's gender: "внутрішній учень", "senior sister". */
+  sectRank: (rank: number, c: NarrationContext) => string;
   instincts: Record<Instinct, { name: string; desc: string }>;
   /** "полювання на сірого духовного вовка" — what a task is, for the journal and the panel. */
   questDesc: (q: QuestNote, c: NarrationContext) => string;

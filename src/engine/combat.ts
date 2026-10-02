@@ -1,12 +1,12 @@
 import { COMBAT_TECHNIQUES } from '../data/techniques.ts';
 import type { EnemyDef } from '../data/enemies.ts';
-import { INSTINCTS } from '../data/instincts.ts';
 import { HEALING_PILL } from '../data/pills.ts';
 import { DEATH_MEMORY, TALENT_EFFECTS } from '../data/talents.ts';
 import { realmEdge } from './levels.ts';
 import { between, chance, nextFloat, type Rng } from './rng.ts';
 import type { Life } from './types.ts';
 import { effectiveStats, hasTalent, maxHp, totalArmor, weaponDamage } from './hero.ts';
+import { temperament } from './temperament.ts';
 
 export interface CombatTechnique {
   key: string;
@@ -71,7 +71,7 @@ export function heroCombatant(life: Life, enemyKey?: string): Combatant {
     damageMult:
       enemyKey && hasTalent(life.talents, DEATH_MEMORY, enemyKey) ? TALENT_EFFECTS.deathMemoryDamage : 1,
     fleeBonus: hasTalent(life.talents, 'quickStep') ? TALENT_EFFECTS.quickStepFlee : 0,
-    fleeAt: INSTINCTS[life.instinct].fleeAt,
+    fleeAt: temperament(life).fleeAt,
   };
 }
 

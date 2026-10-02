@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { CRAFT_KEYS } from '../data/crafts.ts';
 import { MAX_LEVEL, REALMS } from '../data/realms.ts';
 import { SLOTS } from '../data/items.ts';
-import { INSTINCT_KEYS } from '../data/instincts.ts';
+import { INSTINCT_KEYS, type Instinct } from '../data/instincts.ts';
 import { BLESSING_COST, START_PLACES } from '../data/knowledge.ts';
 import { PATH_KEYS, type PathKey } from '../data/paths.ts';
 import {
@@ -20,6 +20,7 @@ import {
   setupCost,
   step,
 } from '../engine/sim.ts';
+import { SECT_RANKS } from '../engine/dream.ts';
 import { instinctChoice } from '../engine/forks.ts';
 import { STAT_KEYS, effectiveStats, maxHp } from '../engine/hero.ts';
 import { qiToReach, realmOf } from '../engine/levels.ts';
@@ -330,7 +331,7 @@ function ForkCard({
   const ctx = narrationContext(game, locale);
   const fork = game.life.fork!;
   const texts = m.forks[fork.key]!;
-  const instinct = m.instincts[game.life.instinct].name;
+  const instinct = m.instincts[game.life.instinct].name + (game.life.secondary ? ` + ${m.instincts[game.life.secondary].name}` : '');
   const fallback = instinctChoice(game);
   return (
     <section class="panel choose fork" aria-live="polite">
@@ -374,13 +375,31 @@ function SetupPanel({ game, locale, update }: { game: GameState; locale: Locale;
             key={key}
             title={m.instincts[key].desc}
             aria-pressed={setup.instinct === key}
-            onClick={() => update((s) => setSetup(s, { instinct: key }))}
+            onClick={() => update((s) => setSetup(s, { instinct: key, ...(s.setup.secondary === key ? { secondary: null } : {}) }))}
           >
             {m.instincts[key].name}
           </button>
         ))}
       </div>
       <p class="muted small">{m.instincts[setup.instinct].desc}</p>
+
+      <label class="field">
+        <span class="label">{m.ui.secondary}</span>
+        <select
+          value={setup.secondary ?? ''}
+          onChange={(e) => {
+            const value = (e.currentTarget as HTMLSelectElement).value;
+            update((s) => setSetup(s, { secondary: value ? (value as Instinct) : null }));
+          }}
+        >
+          <option value="">{m.ui.noSecondary}</option>
+          {INSTINCT_KEYS.filter((key) => key !== setup.instinct).map((key) => (
+            <option key={key} value={key}>
+              {m.instincts[key].name}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <label class="field">
         <span class="label">{m.ui.path}</span>
@@ -579,6 +598,14 @@ function DreamPanel({ game, locale }: { game: GameState; locale: Locale }) {
         <dd>{life.karma}</dd>
         <dt>{m.ui.reputation}</dt>
         <dd>{life.reputation}</dd>
+        <dt>{m.ui.sectRank}</dt>
+        <dd>{cap(m.sectRank(life.sectRank, ctx))}</dd>
+        {life.grudge && (
+          <>
+            <dt>{m.ui.grudge}</dt>
+            <dd>{cap(ctx.enemy(life.grudge.enemy, life.grudge.name).nom)}</dd>
+          </>
+        )}
       </dl>
       <dl class="facts">
         <dt>{m.ui.gatheringPills}</dt>
@@ -601,6 +628,15 @@ function DreamPanel({ game, locale }: { game: GameState; locale: Locale }) {
           {(['herbs', 'cores', 'ore'] as const).map((k) => `${m.ui.mats[k]} ${Math.round(life.mats[k])}`).join(' · ')}
         </dd>
       </dl>
+      {SECT_RANKS[life.sectRank] && (
+        <p class="muted small">
+          {m.ui.nextRank(
+            m.sectRank(life.sectRank + 1, ctx),
+            m.realms[REALMS[realmOf(SECT_RANKS[life.sectRank]!.level)]!.key]!.nom,
+            SECT_RANKS[life.sectRank]!.reputation,
+          )}
+        </p>
+      )}
       {life.shop.level > 0 && <p class="small">{m.ui.shop(life.shop.level)}</p>}
       {life.quest && (
         <p class="small">
@@ -636,6 +672,8 @@ function DreamPanel({ game, locale }: { game: GameState; locale: Locale }) {
     </section>
   );
 }
+
+const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** "Алхімія 3 · Талісмани 1": crafts at level 1 or above. */
 function craftList(crafts: Crafts, m: Messages): string {

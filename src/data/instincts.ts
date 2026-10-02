@@ -3,7 +3,7 @@
 
 import type { TalismanKind } from './crafts.ts';
 
-export type Instinct = 'cautious' | 'bold' | 'greedy' | 'righteous';
+export type Instinct = 'cautious' | 'bold' | 'greedy' | 'righteous' | 'curious' | 'vengeful' | 'lazy' | 'ambitious';
 
 export interface InstinctDef {
   /** Multiplies the hero's own side when sizing up a fight: above 1 overrates, below 1 underrates. */
@@ -45,7 +45,18 @@ export interface InstinctDef {
   talismans: TalismanKind[];
   /** Puts money into a shop instead of spending it. */
   investor: boolean;
+  /**
+   * Leanings that drive whole behaviours, 0 to 1. A main instinct has its own at full strength; a secondary one
+   * adds a share of its own.
+   * - curiosity: wanders off the path (more forks), peeks into the next, harder region before its time;
+   * - vengeance: remembers who made it run and comes back for them; never lets an insult pass;
+   * - sloth: short trips, long meditations, easy work, and too lazy to run from a fight;
+   * - ambition: chases standing in the sect and face: duels, elite work, bosses for the glory.
+   */
+  traits: { curiosity: number; vengeance: number; sloth: number; ambition: number };
 }
+
+const NO_TRAITS = { curiosity: 0, vengeance: 0, sloth: 0, ambition: 0 };
 
 export const INSTINCTS: Record<Instinct, InstinctDef> = {
   cautious: {
@@ -69,6 +80,7 @@ export const INSTINCTS: Record<Instinct, InstinctDef> = {
     craftNerve: 0.6,
     talismans: ['escape', 'thunder'],
     investor: false,
+    traits: NO_TRAITS,
   },
   bold: {
     selfImage: 1.2,
@@ -91,6 +103,7 @@ export const INSTINCTS: Record<Instinct, InstinctDef> = {
     craftNerve: 0.3,
     talismans: ['thunder'],
     investor: false,
+    traits: NO_TRAITS,
   },
   greedy: {
     selfImage: 1,
@@ -113,6 +126,7 @@ export const INSTINCTS: Record<Instinct, InstinctDef> = {
     craftNerve: 0.45,
     talismans: ['escape'],
     investor: true,
+    traits: NO_TRAITS,
   },
   righteous: {
     selfImage: 1,
@@ -135,6 +149,99 @@ export const INSTINCTS: Record<Instinct, InstinctDef> = {
     craftNerve: 0.45,
     talismans: ['thunder', 'escape'],
     investor: false,
+    traits: NO_TRAITS,
+  },
+  curious: {
+    selfImage: 1,
+    engageAt: 0.7,
+    engageDemonAt: 0.75,
+    lootLust: 0,
+    fleeAt: 0.35,
+    maxHuntMonths: 12,
+    returnAtHp: 0.35,
+    fillsBag: false,
+    armoryLag: 1,
+    values: { stones: 0.6, contribution: 1, karma: 0.5, power: 1.2 },
+    fightTaste: 0,
+    riskAversion: 4,
+    wantsPay: false,
+    declineChance: 0,
+    waitsForPill: false,
+    plansFor: 'average',
+    bossFromStage: 8,
+    craftNerve: 0.4,
+    talismans: ['escape', 'thunder'],
+    investor: false,
+    traits: { ...NO_TRAITS, curiosity: 1 },
+  },
+  vengeful: {
+    selfImage: 1.05,
+    engageAt: 0.65,
+    engageDemonAt: 0.6,
+    lootLust: 0,
+    fleeAt: 0.3,
+    maxHuntMonths: 12,
+    returnAtHp: 0.3,
+    fillsBag: false,
+    armoryLag: 1,
+    values: { stones: 0.8, contribution: 1, karma: 0.3, power: 1.8 },
+    fightTaste: 0.1,
+    riskAversion: 3,
+    wantsPay: false,
+    declineChance: 0,
+    waitsForPill: false,
+    plansFor: 'average',
+    bossFromStage: 8,
+    craftNerve: 0.5,
+    talismans: ['thunder', 'escape'],
+    investor: false,
+    traits: { ...NO_TRAITS, vengeance: 1 },
+  },
+  lazy: {
+    selfImage: 1,
+    engageAt: 0.7,
+    engageDemonAt: 0.8,
+    lootLust: 0,
+    fleeAt: 0.15,
+    maxHuntMonths: 5,
+    returnAtHp: 0.25,
+    fillsBag: false,
+    armoryLag: 4,
+    values: { stones: 1, contribution: 0.8, karma: 0.3, power: 0.6 },
+    fightTaste: -0.3,
+    riskAversion: 5,
+    wantsPay: false,
+    declineChance: 0,
+    waitsForPill: false,
+    plansFor: 'average',
+    bossFromStage: 9,
+    craftNerve: 0.9,
+    talismans: [],
+    investor: false,
+    traits: { ...NO_TRAITS, sloth: 1 },
+  },
+  ambitious: {
+    selfImage: 1.1,
+    engageAt: 0.6,
+    engageDemonAt: 0.6,
+    lootLust: 0,
+    fleeAt: 0.3,
+    maxHuntMonths: 12,
+    returnAtHp: 0.3,
+    fillsBag: false,
+    armoryLag: 1,
+    values: { stones: 0.8, contribution: 1.5, karma: 0.5, power: 1.5 },
+    fightTaste: 0.1,
+    riskAversion: 2.5,
+    wantsPay: false,
+    declineChance: 0,
+    waitsForPill: false,
+    plansFor: 'average',
+    bossFromStage: 7,
+    craftNerve: 0.5,
+    talismans: ['thunder'],
+    investor: false,
+    traits: { ...NO_TRAITS, ambition: 1 },
   },
 };
 

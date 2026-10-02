@@ -70,4 +70,18 @@ describe('save migration', () => {
     expect(file.state.stats.kills).toBe(v9.stats.kills);
     expect(file.state.stats.best.level).toEqual(v9.stats.best.level);
   });
+
+  it('upgrades a v9 save: no secondary instinct, no grudges, no rank yet', () => {
+    const v10 = advanceMonths(newGame(9), 30);
+    const { secondary: _s, grudge: _g, sectRank: _r, ...life } = v10.life;
+    const { peek: _p, ...trip } = v10.life.trip;
+    const { secondary: _ss, ...setup } = v10.setup;
+    const v9 = { version: 9, savedAt: 0, lastTickAt: 0, state: { ...v10, setup, life: { ...life, trip } } };
+
+    const file = deserialize(JSON.stringify(v9))!;
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(file.state.setup.secondary).toBeNull();
+    expect(file.state.life).toMatchObject({ secondary: null, grudge: null, sectRank: 0 });
+    expect(() => advanceMonths(file.state, 200)).not.toThrow();
+  });
 });
