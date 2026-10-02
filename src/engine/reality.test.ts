@@ -81,18 +81,24 @@ describe('reality', () => {
     expect(life.startProgress).toBe(totalProgress(5, 40));
   });
 
-  it('real stages go up on their own, but a realm gate waits for the player', () => {
+  it('real stages go up on their own, but a realm gate waits for the player and keeps the qi behind it', () => {
     let s = newGame(2);
-    // Enough qi for the mortal → Qi Condensation gate.
+    // Three times what the mortal → Qi Condensation gate needs.
     s = { ...s, hero: { ...s.hero, qi: qiToReach(1) * 3 } };
     s = step(s);
     expect(s.hero.level).toBe(0);
-    expect(s.hero.qi).toBeCloseTo(qiToReach(1));
+    expect(s.hero.qi).toBeGreaterThanOrEqual(qiToReach(1) * 3);
 
-    const tried = attemptRealBreakthrough(s);
-    const succeeded = tried.hero.level === 1;
-    const failed = tried.hero.injuryBeats > 0;
-    expect(succeeded || failed).toBe(true);
+    for (let seed = 0; seed < 20; seed++) {
+      const tried = attemptRealBreakthrough({ ...s, rngState: seed });
+      if (tried.hero.level === 1) {
+        // The qi beyond the gate flows on into the new realm.
+        expect(tried.hero.qi).toBeCloseTo(s.hero.qi - qiToReach(1));
+      } else {
+        expect(tried.hero.injuryBeats).toBeGreaterThan(0);
+        expect(tried.hero.qi).toBeCloseTo(s.hero.qi - 0.3 * qiToReach(1));
+      }
+    }
   });
 
   it('remembers who killed you', () => {

@@ -18,6 +18,7 @@ const PATHS: Record<string, string> = {
   bolt: 'M13 2 L5 13 H11 L10 22 L19 10 H13 Z',
   secret: 'M7 11 V8 A5 5 0 0 1 17 8 V11 M5 11 H19 V21 H5 Z M12 15 V17',
   place: 'M12 21 C12 21 5 14 5 9 A7 7 0 0 1 19 9 C19 14 12 21 12 21 Z M12 7 A2 2 0 1 1 12.01 7',
+  craft: 'M4 10 H20 L18 19 A2 2 0 0 1 16 21 H8 A2 2 0 0 1 6 19 Z M7 10 V8 M17 10 V8 M9 6 Q10 4 9 2 M13 6 Q14 4 13 2',
 };
 
 export function Icon({ name, size = 16, title }: { name: string; size?: number; title?: string }) {

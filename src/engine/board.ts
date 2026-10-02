@@ -3,6 +3,7 @@ import { INSTINCTS } from '../data/instincts.ts';
 import { BOARD_SIZE, QUESTS, REPUTATION_PAY, baseContribution, baseStones, type QuestDef } from '../data/quests.ts';
 import { zoneFor } from '../data/zones.ts';
 import { enemyCombatant, heroCombatant } from './combat.ts';
+import { willingToForge } from './crafts.ts';
 import { perceivedWin } from './judgement.ts';
 import { nextFloat, nextInt, pickWeighted, type Rng } from './rng.ts';
 import type { Life, Quest, QuestNote } from './types.ts';
@@ -124,7 +125,7 @@ function questUtility(quest: Quest, life: Life, odds: number, rng: Rng): number 
     ins.values.stones * (quest.stones / baseStones(L)) +
     ins.values.contribution * (quest.contribution / baseContribution(L)) +
     ins.values.karma * (quest.karma / 3) +
-    ins.values.power * (quest.itemChance * 2 + Math.max(0, offsetMid) * 0.15);
+    ins.values.power * (quest.itemChance * 2 + Math.max(0, offsetMid) * 0.15 + (quest.ore && willingToForge(life) ? 1 : 0));
   // A pinch of randomness so equal options do not always resolve the same way.
   const fights = ins.fightTaste * quest.fights;
   return success * gain + fights - ins.riskAversion * danger + nextFloat(rng) * 0.01;

@@ -39,4 +39,20 @@ describe('save migration', () => {
     expect(file.state.hero.techniques).toHaveLength(1);
     expect(() => advanceMonths(file.state, 200)).not.toThrow();
   });
+
+  it('upgrades a v7 save: crafts start from nothing, the dream goes on', () => {
+    const v8 = advanceMonths(newGame(12), 30);
+    const { crafts: _hc, ...hero } = v8.hero;
+    const { crafts: _lc, mats: _m, talismans: _t, shop: _s, ...life } = v8.life;
+    const { gathering: _g, eaten: _e, ...pills } = v8.life.pills;
+    const autopilot = { ...v8.autopilot, priority: v8.autopilot.priority.filter((k) => k !== 'craft') };
+    const v7 = { version: 7, savedAt: 0, lastTickAt: 0, state: { ...v8, hero, life: { ...life, pills }, autopilot } };
+
+    const file = deserialize(JSON.stringify(v7))!;
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(file.state.hero.crafts).toEqual({ alchemy: 0, forging: 0, talismans: 0 });
+    expect(file.state.life.mats).toEqual({ herbs: 0, cores: 0, ore: 0 });
+    expect(file.state.autopilot.priority).toContain('craft');
+    expect(() => advanceMonths(file.state, 200)).not.toThrow();
+  });
 });

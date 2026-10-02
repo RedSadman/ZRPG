@@ -1,3 +1,4 @@
+import { CRAFT_KEYS } from '../data/crafts.ts';
 import { MAX_LEVEL } from '../data/realms.ts';
 import { ROOTS } from '../data/roots.ts';
 import { DEATH_MEMORY, TALENTS, TALENT_EFFECTS, THUNDER_SCAR } from '../data/talents.ts';
@@ -5,6 +6,7 @@ import { ENEMIES } from '../data/enemies.ts';
 import { SECRETS } from '../data/knowledge.ts';
 import { MAX_LEVEL as PEAK, QI_COST_MULT, TRIBULATION_FROM_LEVEL } from '../data/realms.ts';
 import { enemyCombatant, fight, heroCombatant } from './combat.ts';
+import { startingCrafts } from './crafts.ts';
 import { defaultSetup, newLife } from './dream.ts';
 import { COMBAT_TECHNIQUES, CULTIVATION_TECHNIQUES, MAX_COMBAT_TECHNIQUES } from '../data/techniques.ts';
 import type { Emit } from './dream.ts';
@@ -23,7 +25,7 @@ export const INJURY_BEATS = 600;
 /** Waking meditation: one beat is worth this many dreamed months of meditation. */
 const REAL_MONTHS_PER_BEAT = 1 / 200;
 
-export const DEFAULT_PRIORITY: RewardKind[] = ['knowledge', 'qi', 'talent', 'item', 'technique', 'cultivation', 'stats'];
+export const DEFAULT_PRIORITY: RewardKind[] = ['knowledge', 'qi', 'talent', 'item', 'technique', 'craft', 'cultivation', 'stats'];
 
 /** Fate points earned by a finished dream. */
 export function fateFor(score: number): number {
@@ -67,10 +69,8 @@ function settleRealQi(s: GameState, rng: Rng, emit: Emit): void {
     const next = hero.level + 1;
     const need = qiToReach(next);
     if (hero.qi < need) return;
-    if (isRealmGate(next)) {
-      hero.qi = need;
-      return;
-    }
+    // Qi beyond a realm gate is not lost: it waits behind the gate and flows on after the breakthrough.
+    if (isRealmGate(next)) return;
     hero.qi -= need;
     hero.level = next;
     growStats(hero.path, hero.stats, 2, rng);
@@ -96,12 +96,13 @@ export function realBreakthrough(s: GameState, rng: Rng, emit: Emit): void {
   if (!canAttemptRealBreakthrough(hero)) return;
   const next = hero.level + 1;
   if (chance(rng, realBreakthroughChance(hero))) {
+    hero.qi -= qiToReach(next);
     hero.level = next;
-    hero.qi = 0;
     growStats(hero.path, hero.stats, 4, rng);
     emit({ kind: 'realBreakthrough', level: next, success: true });
+    settleRealQi(s, rng, emit);
   } else {
-    hero.qi *= 0.7;
+    hero.qi -= 0.3 * qiToReach(next);
     hero.injuryBeats = INJURY_BEATS;
     emit({ kind: 'realBreakthrough', level: next, success: false });
   }
@@ -123,7 +124,10 @@ export function makeOffer(hero: Hero, life: Life, score: number, rng: Rng): Rewa
   const newTech = life.techniques
     .filter((t) => !known.has(t.key))
     .sort((a, b) => COMBAT_TECHNIQUES[b.key]!.k - COMBAT_TECHNIQUES[a.key]!.k)[0];
-  if (newTech) candidates.push({ kind: 'technique', key: newTech.key, uses: Math.floor(newTech.uses * MASTERY_KEPT[q]!) });
+  // A new technique and a craft the hands learned share one place on the table: both are an art carried out.
+  const craft = craftOffer(hero, life, q);
+  const art: Reward | null = newTech ? { kind: 'technique', key: newTech.key, uses: Math.floor(newTech.uses * MASTERY_KEPT[q]!) } : craft;
+  if (art) candidates.push(newTech && craft && nextFloat(rng) < 0.5 ? craft : art);
 
   const cultIdx = (key: string) => CULTIVATION_TECHNIQUES.findIndex((t) => t.key === key);
   if (cultIdx(life.cultivation) > cultIdx(hero.cultivation)) candidates.push({ kind: 'cultivation', key: life.cultivation });
@@ -157,6 +161,23 @@ function bestItemUpgrade(hero: Hero, life: Life) {
     if (gain > 0 && (!best || gain > best.gain)) best = { item, gain };
   }
   return best?.item ? structuredClone(best.item) : null;
+}
+
+/**
+ * The craft that grew most in this dream beyond what the path gives for free. The hand remembers part of it:
+ * at least one level, more after a good life.
+ */
+function craftOffer(hero: Hero, life: Life, q: number): Reward | null {
+  const start = startingCrafts(hero, life.path);
+  let best: { craft: (typeof CRAFT_KEYS)[number]; level: number; gain: number } | null = null;
+  for (const craft of CRAFT_KEYS) {
+    const dream = Math.floor(life.crafts[craft]);
+    const real = Math.floor(hero.crafts[craft]);
+    if (dream <= Math.floor(start[craft])) continue;
+    const level = real + Math.max(1, Math.round((dream - real) * MASTERY_KEPT[q]!));
+    if (!best || level - real > best.gain) best = { craft, level, gain: level - real };
+  }
+  return best ? { kind: 'craft', craft: best.craft, level: best.level } : null;
 }
 
 function talentOffers(hero: Hero, life: Life, q: number, rng: Rng) {
@@ -216,6 +237,9 @@ export function applyReward(s: GameState, reward: Reward, rng: Rng, emit: Emit):
       return;
     case 'knowledge':
       if (!hero.knowledge.includes(reward.key)) hero.knowledge.push(reward.key);
+      return;
+    case 'craft':
+      hero.crafts[reward.craft] = Math.max(hero.crafts[reward.craft], reward.level);
       return;
   }
 }

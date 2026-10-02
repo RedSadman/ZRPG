@@ -1,3 +1,4 @@
+import type { CraftKey, Product, TalismanKind } from '../data/crafts.ts';
 import type { Instinct } from '../data/instincts.ts';
 import type { PathKey } from '../data/paths.ts';
 import type { RootKey } from '../data/roots.ts';
@@ -90,6 +91,9 @@ export interface Messages {
   /** "духовного рангу" / "Spirit-rank". */
   rankOf: string[];
   techniques: Record<string, string>;
+  crafts: Record<CraftKey, string>;
+  /** "3 пілюлі збирання духу", as the object of "made". */
+  products: Record<Product, PluralForms>;
   talents: Record<string, { name: string; desc: string }>;
   /** Short name of a reward for buttons and the journal. */
   rewardTitle: (r: Reward, c: NarrationContext) => string;
@@ -164,6 +168,13 @@ export interface Messages {
     finalHint: string;
     endingTitle: string;
     endingText: string;
+    crafts: string;
+    materials: string;
+    mats: Record<'herbs' | 'cores' | 'ore', string>;
+    gatheringPills: string;
+    talismans: string;
+    talismanKinds: Record<TalismanKind, string>;
+    shop: (level: number) => string;
   };
   instincts: Record<Instinct, { name: string; desc: string }>;
   /** "полювання на сірого духовного вовка" — what a task is, for the journal and the panel. */

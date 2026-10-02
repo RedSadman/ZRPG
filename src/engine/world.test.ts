@@ -18,7 +18,7 @@ function atGate(level: number, seed: number): GameState {
     ...newLife(hero, 1, { instinct: 'bold', path: hero.path, start: 'azureCloudSect', blessing: false }),
     activity: 'meditate' as const,
     qi: qiToReach(level) - 1,
-    pills: { healing: 0, breakthrough: null },
+    pills: { healing: 0, breakthrough: null, gathering: 0, eaten: 0 },
   };
   return { ...s, hero, life, rngState: seed * 977 };
 }
@@ -61,7 +61,7 @@ describe('the world', () => {
     for (let seed = 1; seed <= 40 && !found; seed++) {
       const s = newGame(seed);
       const hero = { ...s.hero, level: 9, stats: { body: 40, qi: 40, agi: 30, mind: 30, luck: 10 } };
-      const life = { ...newLife(hero, 1), activity: 'hunt' as const, monthsInActivity: 3, pills: { healing: 3, breakthrough: null } };
+      const life = { ...newLife(hero, 1), activity: 'hunt' as const, monthsInActivity: 3, pills: { healing: 3, breakthrough: null, gathering: 0, eaten: 0 } };
       const after = advanceMonths({ ...s, hero, life, rngState: seed }, 3);
       found = after.life.discoveries.includes('secretRavine');
     }

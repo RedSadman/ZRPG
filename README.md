@@ -11,6 +11,7 @@ npm test           # Vitest
 npm run typecheck
 npm run build      # статична збірка в dist/
 node tools/sim.ts 400   # симулятор балансу: 400 снів на автопілоті
+node tools/sim.ts time 20 8 bold   # прогрес за реальним часом гри (з урахуванням зарядів)
 ```
 
 ## Структура

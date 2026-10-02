@@ -1,5 +1,6 @@
 import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { CRAFT_KEYS } from '../data/crafts.ts';
 import { MAX_LEVEL, REALMS } from '../data/realms.ts';
 import { SLOTS } from '../data/items.ts';
 import { INSTINCT_KEYS } from '../data/instincts.ts';
@@ -32,10 +33,11 @@ import {
 import { SECRETS } from '../data/knowledge.ts';
 import { Icon } from './Icon.tsx';
 import { MapPanel } from './MapPanel.tsx';
-import type { GameState } from '../engine/types.ts';
+import type { Crafts, GameState } from '../engine/types.ts';
 import { TICK_MS, startTicker, ticksSince } from '../clock/clock.ts';
 import { clearSave, loadSave, writeSave } from '../save/save.ts';
 import { LOCALES, loadLocale, messages, saveLocale, type Locale } from '../i18n/index.ts';
+import type { Messages } from '../i18n/types.ts';
 import { levelLabel, narrate, narrateEntry, narrateSummary, narrationContext } from '../narrator/narrator.ts';
 
 const AUTOSAVE_MS = 30_000;
@@ -460,6 +462,12 @@ function RealityPanel({
         <dd>{m.roots[hero.root]}</dd>
         <dt>{m.ui.path}</dt>
         <dd>{m.paths[hero.path]}</dd>
+        {CRAFT_KEYS.some((k) => hero.crafts[k] >= 1) && (
+          <>
+            <dt>{m.ui.crafts}</dt>
+            <dd>{craftList(hero.crafts, m)}</dd>
+          </>
+        )}
       </dl>
 
       {!atCeiling && <Meter label={m.ui.qi} value={hero.qi} max={qiToReach(hero.level + 1)} kind="qi" />}
@@ -555,6 +563,28 @@ function DreamPanel({ game, locale }: { game: GameState; locale: Locale }) {
         <dt>{m.ui.reputation}</dt>
         <dd>{life.reputation}</dd>
       </dl>
+      <dl class="facts">
+        <dt>{m.ui.gatheringPills}</dt>
+        <dd>{life.pills.gathering}</dd>
+        {life.talismans.escape + life.talismans.thunder > 0 && (
+          <>
+            <dt>{m.ui.talismans}</dt>
+            <dd>
+              {(['escape', 'thunder'] as const)
+                .filter((k) => life.talismans[k] > 0)
+                .map((k) => `${m.ui.talismanKinds[k]} ${life.talismans[k]}`)
+                .join(' · ')}
+            </dd>
+          </>
+        )}
+        <dt>{m.ui.crafts}</dt>
+        <dd>{craftList(life.crafts, m) || '—'}</dd>
+        <dt>{m.ui.materials}</dt>
+        <dd>
+          {(['herbs', 'cores', 'ore'] as const).map((k) => `${m.ui.mats[k]} ${Math.round(life.mats[k])}`).join(' · ')}
+        </dd>
+      </dl>
+      {life.shop.level > 0 && <p class="small">{m.ui.shop(life.shop.level)}</p>}
       {life.quest && (
         <p class="small">
           <span class="muted">{m.ui.quest}: </span>
@@ -588,6 +618,13 @@ function DreamPanel({ game, locale }: { game: GameState; locale: Locale }) {
       </ul>
     </section>
   );
+}
+
+/** "Алхімія 3 · Талісмани 1": crafts at level 1 or above. */
+function craftList(crafts: Crafts, m: Messages): string {
+  return CRAFT_KEYS.filter((k) => crafts[k] >= 1)
+    .map((k) => `${m.crafts[k]} ${Math.floor(crafts[k])}`)
+    .join(' · ');
 }
 
 function Meter({ label, value, max, kind }: { label: string; value: number; max: number; kind: string }) {

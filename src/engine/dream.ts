@@ -1,3 +1,4 @@
+import { GATHERING_PILL } from '../data/crafts.ts';
 import { ENEMIES } from '../data/enemies.ts';
 import { INSTINCTS } from '../data/instincts.ts';
 import { BLESSING_LUCK, HIDDEN_SPRING_MIN_LEVEL, HIDDEN_SPRING_QI, SECRETS, startPlace } from '../data/knowledge.ts';
@@ -10,13 +11,23 @@ import { COMBAT_TECHNIQUES, CULTIVATION_TECHNIQUES, LIBRARY, MAX_COMBAT_TECHNIQU
 import { zoneFor, type ZoneDef } from '../data/zones.ts';
 import { ELITE_ATK, ELITE_HP, chooseQuest, postBoard, questFoe, questNote } from './board.ts';
 import { enemyCombatant, fight, heroCombatant } from './combat.ts';
+import {
+  buyGatheringPills,
+  collectTill,
+  healingPillPrice,
+  investInShop,
+  shopMonth,
+  startingCrafts,
+  thunderDamage,
+  visitWorkshop,
+} from './crafts.ts';
 import { maybeFork } from './forks.ts';
 import { bagCapacity, bagCount, cultivationRate, effectiveStats, growStats, hasTalent, maxHp } from './hero.ts';
 import { estimateWin, perceivedWin } from './judgement.ts';
 import { isRealmGate, lifespanMonths, monthsPerTick, qiToReach, realmOf, stageOf, totalProgress } from './levels.ts';
 import { itemPower, makeItem, rollRank, sellValue, starterItem, takeItem } from './loot.ts';
 import { between, chance, nextInt, pick, pickWeighted, type Rng } from './rng.ts';
-import type { Activity, DeathCause, DreamSetup, GameEvent, GameState, Hero, Life, Quest, Slot } from './types.ts';
+import type { Activity, DeathCause, DreamSetup, FightNote, GameEvent, GameState, Hero, Life, Quest, Slot } from './types.ts';
 
 export const START_AGE_MONTHS = 16 * 12;
 
@@ -29,6 +40,8 @@ const ENCOUNTER_CHANCE = 0.6;
 const PEACEFUL_ENCOUNTER_CHANCE = 0.3;
 /** Chance per month in the mine to bring out a chunk of spirit ore. */
 const ORE_CHANCE = 0.6;
+/** Chance per month on an ordinary hunt to stumble on a vein of it. */
+const ORE_FIND_CHANCE = 0.05;
 /** Qi gathered on sect duty, as a share of a meditation month. */
 const DUTY_QI_SHARE = 0.3;
 const TRAVEL_ENCOUNTER_CHANCE = 0.15;
@@ -84,7 +97,11 @@ export function newLife(hero: Hero, n: number, setup: DreamSetup = defaultSetup(
     bag: { trophyValue: 0, trophies: 0, items: [] },
     stones: 0,
     contribution: 0,
-    pills: { healing: place.startPills, breakthrough: null },
+    pills: { healing: place.startPills, breakthrough: null, gathering: 0, eaten: 0 },
+    talismans: { escape: 0, thunder: 0 },
+    mats: { herbs: 0, cores: 0, ore: 0 },
+    crafts: startingCrafts(hero, setup.path),
+    shop: { level: 0, till: 0 },
     techniques,
     cultivation: hero.cultivation,
     activity: 'sect',
@@ -160,6 +177,7 @@ export function liveMonth(s: GameState, rng: Rng, emit: Emit): void {
     die(life, emit, 'oldAge');
     return;
   }
+  shopMonth(s, rng, emit);
 
   switch (life.activity) {
     case 'sect':
@@ -219,18 +237,19 @@ function sectMonth(s: GameState, rng: Rng, emit: Emit): void {
   const place = startPlace(life.start);
   life.hp = maxHp(life);
 
-  const sold = Math.round(life.bag.trophyValue) + life.bag.items.reduce((sum, i) => sum + sellValue(i), 0);
+  let sold = Math.round(life.bag.trophyValue) + life.bag.items.reduce((sum, i) => sum + sellValue(i), 0);
   life.stones += sold;
   life.bag = { trophyValue: 0, trophies: 0, items: [] };
-  if (sold > 0) emit({ kind: 'sect', ageMonths: life.ageMonths, sold, contribution: 0 }, 1);
+  const income = collectTill(life);
 
   settleQuest(s, rng, emit);
   learnInLibrary(life, emit);
   visitArmory(s, rng);
+  const work = visitWorkshop(s, rng);
+  life.stones += work.sold;
+  sold += work.sold;
 
-  const pillPrice = Math.round(
-    (HEALING_PILL.basePrice + HEALING_PILL.pricePerLevel * life.level) * PATHS[life.path].pillPriceMult * place.pillPriceMult,
-  );
+  const pillPrice = healingPillPrice(life);
   while (life.pills.healing < HEALING_PILL.carryMax && life.stones >= pillPrice) {
     life.stones -= pillPrice;
     life.pills.healing += 1;
@@ -243,6 +262,26 @@ function sectMonth(s: GameState, rng: Rng, emit: Emit): void {
       life.stones -= price;
       life.pills.breakthrough = gatePill.key;
     }
+  }
+  investInShop(s, emit);
+  buyGatheringPills(life);
+  if (sold > 0 || income > 0 || work.batches.length > 0 || work.forgeFailed) {
+    const { batches, item, forgeFailed } = work;
+    // A forged treasure or a home-brewed realm pill is worth remembering; the rest is routine.
+    const priority = item ? 2 + 2 * item.rank : batches.some((b) => b.product === 'gatePill' && b.made > 0) ? 4 : 1;
+    emit(
+      {
+        kind: 'sect',
+        ageMonths: life.ageMonths,
+        sold,
+        contribution: 0,
+        ...(income > 0 ? { income } : {}),
+        ...(batches.length ? { batches } : {}),
+        ...(item ? { item } : {}),
+        ...(forgeFailed ? { forgeFailed } : {}),
+      },
+      priority,
+    );
   }
 
   if (!life.quest) {
@@ -302,9 +341,12 @@ function learnInLibrary(life: Life, emit: Emit): void {
   emit({ kind: 'technique', ageMonths: life.ageMonths, technique: next }, 5);
 }
 
+/** The next scroll worth learning: unknown, and with every slot taken, stronger than the weakest one known. */
 export function nextLibraryTechnique(life: Life): string | undefined {
   const known = new Set(life.techniques.map((t) => t.key));
-  return LIBRARY.find((key) => !known.has(key));
+  const weakest =
+    life.techniques.length >= MAX_COMBAT_TECHNIQUES ? Math.min(...life.techniques.map((t) => COMBAT_TECHNIQUES[t.key]!.k)) : -Infinity;
+  return LIBRARY.find((key) => !known.has(key) && COMBAT_TECHNIQUES[key]!.k > weakest);
 }
 
 /** Learns a technique, forgetting the weakest if all slots are taken. */
@@ -365,7 +407,7 @@ function huntMonth(s: GameState, rng: Rng, emit: Emit): void {
 
   const herbChance = (PATHS[life.path].herbChance + startPlace(life.start).herbBonus) * (quest?.kind === 'herbs' ? 2 : 1);
   if (chance(rng, herbChance) && bagCount(life) < bagCapacity(life)) {
-    life.bag.trophyValue += zone.herbValue * (1 + 0.1 * life.level);
+    life.mats.herbs += zone.herbValue * (1 + 0.1 * life.level);
     life.bag.trophies += 1;
     life.trip.herbs += 1;
   }
@@ -380,8 +422,9 @@ function huntMonth(s: GameState, rng: Rng, emit: Emit): void {
   }
   if (life.death || life.activity !== 'hunt') return;
 
-  if (quest?.ore && quest.monthsLeft >= 0 && chance(rng, ORE_CHANCE) && bagCount(life) < bagCapacity(life)) {
-    life.bag.trophyValue += zone.herbValue * 1.5 * (1 + 0.1 * life.level);
+  const oreChance = quest?.ore && quest.monthsLeft >= 0 ? ORE_CHANCE : ORE_FIND_CHANCE;
+  if (chance(rng, oreChance) && bagCount(life) < bagCapacity(life)) {
+    life.mats.ore += zone.herbValue * 1.5 * (1 + 0.1 * life.level);
     life.bag.trophies += 1;
     life.trip.ore += 1;
   }
@@ -494,7 +537,7 @@ export interface EncounterOptions {
   quiet?: boolean;
 }
 
-export type EncounterResult = 'won' | 'fled' | 'avoided' | 'rescued' | 'lost' | 'beaten';
+export type EncounterResult = 'won' | 'fled' | 'avoided' | 'rescued' | 'lost' | 'beaten' | 'escaped';
 
 export function encounter(
   s: GameState,
@@ -508,7 +551,7 @@ export function encounter(
   const def = ENEMIES[enemyKey]!;
   const ins = INSTINCTS[life.instinct];
   const name = def.rival ? pick(rng, RIVAL_SURNAMES) : undefined;
-  const note = (n: 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed' | 'ambushed', priority: number) => {
+  const note = (n: FightNote, priority: number) => {
     if (opts.quiet) return;
     emit({ kind: 'fight', ageMonths: life.ageMonths, enemy: enemyKey, enemyLevel: level, note: n, ...(name ? { name } : {}) }, priority);
   };
@@ -540,6 +583,12 @@ export function encounter(
     } else chose = true;
   }
 
+  // A thunder talisman opens a hard fight with a bolt.
+  if (life.talismans.thunder > 0 && estimateWin(me, foe, life.pills.healing) < 0.75) {
+    life.talismans.thunder -= 1;
+    foe.hp = Math.max(1, foe.hp - thunderDamage(level));
+  }
+
   const r = fight(me, foe, life.pills.healing, effectiveStats(life).luck, rng);
   life.hp = r.heroHp;
   life.pills.healing -= r.pillsUsed;
@@ -552,6 +601,14 @@ export function encounter(
         life.hp = 1;
         life.injuryMonths = Math.max(life.injuryMonths, 6);
         return 'beaten';
+      }
+      if (life.talismans.escape > 0) {
+        // The talisman tears you out of the fight and drops you a hundred li away, half dead but alive.
+        life.talismans.escape -= 1;
+        life.hp = 1;
+        note('escaped', 6);
+        go(life, 'returning');
+        return 'escaped';
       }
       die(life, emit, 'killed', enemyKey, level, name, chose && odds < 0.4);
       return 'lost';
@@ -599,7 +656,10 @@ export function encounter(
 
   const value = hasTalent(life.talents, 'goldenTouch') ? TALENT_EFFECTS.goldenTouchValue : 1;
   if (def.trophy > 0 && bagCount(life) < bagCapacity(life)) {
-    life.bag.trophyValue += def.trophy * (1 + 0.15 * level) * value;
+    // A beast leaves a core for the furnace; anything else is a trophy for the market.
+    const worth = def.trophy * (1 + 0.15 * level) * value;
+    if (def.kind === 'beast') life.mats.cores += worth;
+    else life.bag.trophyValue += worth;
     life.bag.trophies += 1;
   }
   if (def.stones > 0) life.stones += Math.round(def.stones * (1 + 0.2 * level) * between(rng, 0.5, 1.5) * value);
@@ -644,7 +704,13 @@ function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
   }
 
   const need = qiToReach(next);
-  life.qi = Math.min(need, life.qi + qiPerMonth(hero, life));
+  let gain = qiPerMonth(hero, life);
+  if (life.pills.gathering > 0 && life.pills.eaten < GATHERING_PILL.perStage && life.qi < need) {
+    life.pills.gathering -= 1;
+    life.pills.eaten += 1;
+    gain += need * GATHERING_PILL.share;
+  }
+  life.qi = Math.min(need, life.qi + gain);
   if (life.qi < need) {
     if (life.monthsInActivity >= MAX_MEDITATION_MONTHS) {
       life.plan = 'hunt';
@@ -668,6 +734,7 @@ function meditateMonth(s: GameState, rng: Rng, emit: Emit): void {
   } else {
     life.level = next;
     life.qi = 0;
+    life.pills.eaten = 0;
     growStats(life.path, life.stats, 2, rng);
     emit({ kind: 'stageUp', ageMonths: life.ageMonths, level: next, months: life.monthsInActivity * monthsPerTick(life.level - 1) }, 3);
   }
@@ -731,6 +798,7 @@ function attemptBreakthrough(s: GameState, rng: Rng, emit: Emit): void {
     if (next >= TRIBULATION_FROM_LEVEL && !surviveTribulation(s, rng, emit, next)) return;
     life.level = next;
     life.qi = 0;
+    life.pills.eaten = 0;
     growStats(life.path, life.stats, 4, rng);
     life.hp = maxHp(life);
     emit({ kind: 'realmUp', ageMonths: life.ageMonths, level: next, pill: usedPill }, 9);

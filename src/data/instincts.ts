@@ -1,6 +1,8 @@
 // How the dreamer behaves when nobody is choosing for them. Instincts change decisions, not numbers:
 // how the hero sizes up a fight, which work they take, when they run, when they dare a breakthrough.
 
+import type { TalismanKind } from './crafts.ts';
+
 export type Instinct = 'cautious' | 'bold' | 'greedy' | 'righteous';
 
 export interface InstinctDef {
@@ -37,6 +39,12 @@ export interface InstinctDef {
   plansFor: 'worst' | 'average' | 'best';
   /** Goes after the zone's boss from this stage of the realm on. */
   bossFromStage: number;
+  /** Lowest chance of success at which the hero bothers with a craft at all; below it the materials are sold. */
+  craftNerve: number;
+  /** Talismans the hero cares to make, most wanted first. */
+  talismans: TalismanKind[];
+  /** Puts money into a shop instead of spending it. */
+  investor: boolean;
 }
 
 export const INSTINCTS: Record<Instinct, InstinctDef> = {
@@ -58,6 +66,9 @@ export const INSTINCTS: Record<Instinct, InstinctDef> = {
     waitsForPill: true,
     plansFor: 'worst',
     bossFromStage: 9,
+    craftNerve: 0.6,
+    talismans: ['escape', 'thunder'],
+    investor: false,
   },
   bold: {
     selfImage: 1.2,
@@ -77,6 +88,9 @@ export const INSTINCTS: Record<Instinct, InstinctDef> = {
     waitsForPill: false,
     plansFor: 'best',
     bossFromStage: 7,
+    craftNerve: 0.3,
+    talismans: ['thunder'],
+    investor: false,
   },
   greedy: {
     selfImage: 1,
@@ -96,6 +110,9 @@ export const INSTINCTS: Record<Instinct, InstinctDef> = {
     waitsForPill: false,
     plansFor: 'average',
     bossFromStage: 8,
+    craftNerve: 0.45,
+    talismans: ['escape'],
+    investor: true,
   },
   righteous: {
     selfImage: 1,
@@ -115,6 +132,9 @@ export const INSTINCTS: Record<Instinct, InstinctDef> = {
     waitsForPill: false,
     plansFor: 'average',
     bossFromStage: 9,
+    craftNerve: 0.45,
+    talismans: ['thunder', 'escape'],
+    investor: false,
   },
 };
 

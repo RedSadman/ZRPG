@@ -2,12 +2,18 @@
 // Usage: node tools/sim.ts [dreams=300] [seed=1]        first dreams of fresh heroes
 //        node tools/sim.ts 300 1 bold                    the same with another instinct
 //        node tools/sim.ts loop [players=40] [dreams=20] progression across dreams with rewards
+//        node tools/sim.ts time [players=20] [hours=8] [instinct]   progression by real play time, charges included
 
 import { MAX_LEVEL } from '../src/data/realms.ts';
 import { realmOf, stageOf } from '../src/engine/levels.ts';
 import { advanceSteps, attemptRealBreakthrough, chooseReward, newGame } from '../src/engine/sim.ts';
 import { autoPick, canAttemptRealBreakthrough } from '../src/engine/reality.ts';
 import type { DreamSummary, GameState } from '../src/engine/types.ts';
+
+if (process.argv[2] === 'time') {
+  byTime(Number(process.argv[3] ?? 20), Number(process.argv[4] ?? 8), process.argv[5] as GameState['life']['instinct'] | undefined);
+  process.exit(0);
+}
 
 if (process.argv[2] === 'loop') {
   loop(Number(process.argv[3] ?? 40), Number(process.argv[4] ?? 20), process.argv[5] as GameState['life']['instinct'] | undefined);
@@ -109,5 +115,33 @@ function loop(players: number, count: number, instinct?: GameState['life']['inst
     const f = (x: number, d = 1) => (x / players).toFixed(d).padStart(6);
     const oldAge = `${((100 * r.oldAge) / players).toFixed(0)}%`.padStart(7);
     console.log(`${String(i + 1).padStart(5)}  ${f(r.level)}       ${f(r.realLevel)}     ${f(r.age, 0)}  ${f(r.score, 0)}  ${f(r.beats, 0)}  ${oldAge}`);
+  });
+}
+
+/**
+ * Plays in real time: the Pillow's charges limit how often a dream can start, so short lives are not free.
+ * One beat is ~3 s, so an hour is 1200 beats.
+ */
+function byTime(players: number, hours: number, instinct?: GameState['life']['instinct']): void {
+  const BEATS_PER_HOUR = 1200;
+  const rows = Array.from({ length: hours }, () => ({ realLevel: 0, dreams: 0 }));
+  for (let p = 0; p < players; p++) {
+    let s: GameState = newGame(7_000_003 + p);
+    if (instinct) s = { ...s, setup: { ...s.setup, instinct }, life: { ...s.life, instinct } };
+    s = { ...s, autopilot: { ...s.autopilot, enabled: true } };
+    for (let h = 0; h < hours; h++) {
+      const until = (h + 1) * BEATS_PER_HOUR;
+      while (s.beat < until) {
+        if (canAttemptRealBreakthrough(s.hero)) s = attemptRealBreakthrough(s);
+        s = advanceSteps(s, Math.min(50, until - s.beat));
+      }
+      rows[h]!.realLevel += s.hero.level;
+      rows[h]!.dreams += s.dreamsEnded;
+    }
+  }
+  console.log(`Players: ${players}, hours: ${hours}${instinct ? `, instinct: ${instinct}` : ''}`);
+  console.log('hour  real-level  dreams');
+  rows.forEach((r, i) => {
+    console.log(`${String(i + 1).padStart(4)}  ${(r.realLevel / players).toFixed(1).padStart(10)}  ${(r.dreams / players).toFixed(1).padStart(6)}`);
   });
 }

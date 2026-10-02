@@ -1,10 +1,11 @@
 import { PATHS } from '../data/paths.ts';
 import { CULTIVATION_TECHNIQUES } from '../data/techniques.ts';
+import { startingCrafts } from '../engine/crafts.ts';
 import { CHARGE_MAX, DEFAULT_PRIORITY } from '../engine/reality.ts';
 import type { GameState } from '../engine/types.ts';
 
 export const SAVE_KEY = 'zrpg.save';
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export interface SaveFile {
   version: number;
@@ -82,6 +83,17 @@ const migrations: Record<number, (old: SaveFile) => SaveFile> = {
     s.life.valor = 0;
     s.ascended = false;
     return { ...old, version: 7, state: s as GameState };
+  },
+  // v7 → v8: crafts and business. Nobody has learned a craft yet; the dream in progress starts with an empty storehouse.
+  7: (old) => {
+    const s = old.state as any;
+    s.hero.crafts = { alchemy: 0, forging: 0, talismans: 0 };
+    s.life.crafts = startingCrafts(s.hero, s.life.path);
+    Object.assign(s.life.pills, { gathering: 0, eaten: 0 });
+    Object.assign(s.life, { talismans: { escape: 0, thunder: 0 }, mats: { herbs: 0, cores: 0, ore: 0 }, shop: { level: 0, till: 0 } });
+    const priority: string[] = s.autopilot.priority;
+    if (!priority.includes('craft')) priority.splice(Math.max(0, priority.indexOf('cultivation')), 0, 'craft');
+    return { ...old, version: 8, state: s as GameState };
   },
 };
 

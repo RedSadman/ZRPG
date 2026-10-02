@@ -34,6 +34,7 @@ export function generateHero(rng: Rng): Hero {
     injuryBeats: 0,
     knowledge: [],
     fate: 0,
+    crafts: { alchemy: 0, forging: 0, talismans: 0 },
   };
 }
 

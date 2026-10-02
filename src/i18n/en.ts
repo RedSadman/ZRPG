@@ -147,6 +147,14 @@ export const en: Messages = {
     starfallPalm: 'Starfall Palm',
     voidSeveringBlade: 'Void-Severing Blade',
   },
+  crafts: { alchemy: 'Alchemy', forging: 'Forging', talismans: 'Talismans' },
+  products: {
+    healingPill: { one: 'a healing pill', other: '{n} healing pills' },
+    gatheringPill: { one: 'a Spirit Gathering pill', other: '{n} Spirit Gathering pills' },
+    gatePill: { one: 'a breakthrough pill', other: '{n} breakthrough pills' },
+    escapeTalisman: { one: 'a Thousand-Li talisman', other: '{n} Thousand-Li talismans' },
+    thunderTalisman: { one: 'a thunder talisman', other: '{n} thunder talismans' },
+  },
   talents: {
     ironSkin: { name: 'Iron Skin', desc: '+10% health in every dream' },
     quickStep: { name: 'Quick Step', desc: 'Retreats succeed more often' },
@@ -176,6 +184,8 @@ export const en: Messages = {
         return 'Tempering';
       case 'knowledge':
         return `Knowledge: ${c.m.knowledge[r.key]!.name}`;
+      case 'craft':
+        return `Craft: ${c.m.crafts[r.craft]}, level ${r.level}`;
     }
   },
   rewardDesc: (r, c) => {
@@ -196,6 +206,8 @@ export const en: Messages = {
           .join(', ');
       case 'knowledge':
         return c.m.knowledge[r.key]!.desc;
+      case 'craft':
+        return 'Your hands remember: every dream starts with this much skill';
     }
   },
   stats: { body: 'Body', qi: 'Qi', agi: 'Agility', mind: 'Mind', luck: 'Luck' },
@@ -255,6 +267,7 @@ export const en: Messages = {
       cultivation: 'Cultivation methods',
       stats: 'Tempering',
       knowledge: 'Knowledge',
+      craft: 'Crafts',
     },
     moveUp: 'Up',
     moveDown: 'Down',
@@ -288,6 +301,13 @@ export const en: Messages = {
     endingTitle: 'Ascension',
     endingText:
       'You open your eyes. The Blood Moon Patriarch lies at the threshold of the inn, and the Taoist unhurriedly lifts the pot from the fire. “The millet is done,” he says. A thousand dreams are over. Ahead lies immortality.',
+    crafts: 'Crafts',
+    materials: 'Materials, in stones',
+    mats: { herbs: 'herbs', cores: 'beast cores', ore: 'ore' },
+    gatheringPills: 'Spirit Gathering pills',
+    talismans: 'Talismans',
+    talismanKinds: { escape: 'Thousand-Li', thunder: 'thunder' },
+    shop: (n) => `Shop in town, level ${n}`,
   },
   instincts: {
     cautious: { name: 'Cautious', desc: 'Avoids any fight it is not sure to win. Lives longer, but misses a lot' },
@@ -418,6 +438,11 @@ export const en: Messages = {
           return `${age} You felt the pressure of a stranger's qi — ${a(foe)} (${c.level(e.enemyLevel)}) — and hid in time.`;
         case 'ambushed':
           return `${age} You tried to slip past ${the(foe)}, but it caught up with you. Somehow, you won.`;
+        case 'escaped':
+          return c.vary(
+            `${age} ${cap(the(foe))} was already raising the final blow when you tore your Thousand-Li talisman — and found yourself a hundred li away, barely alive.`,
+            `${age} You lost to ${the(foe)}, but the Thousand-Li talisman was faster than the last blow. You came to in a ditch three mountains away.`,
+          );
       }
     },
     loot: (e, c) => {
@@ -456,11 +481,46 @@ export const en: Messages = {
     pillWait: (e, c) =>
       `You are ${c.age(e.ageMonths)}. You are ready to break through to ${realmName(c.m, e.level)}, but you will not risk it without a pill.`,
     sect: (e, c) => {
+      const deeds: string[] = [];
+      if (e.sold > 0) deeds.push(`sold trophies and materials for ${c.plural(e.sold, STONES)}`);
+      if (e.income) deeds.push(`took ${c.plural(e.income, STONES)} from your shop`);
+      const made = (craft: string) =>
+        (e.batches ?? []).filter((b) => b.craft === craft && b.made > 0).map((b) => c.plural(b.made, c.m.products[b.product]));
+      const pills = made('alchemy');
+      const talismans = made('talismans');
+      if (pills.length) deeds.push(`brewed ${joinList(pills)}`);
+      if (talismans.length) deeds.push(`drew ${joinList(talismans)}`);
+      if (e.item) deeds.push(`forged ${e.item.rank === 0 ? c.item(e.item, 'acc') : `a ${c.m.rankOf[e.item.rank]} ${c.item(e.item, 'acc')}`}`);
       const age = `You are ${c.age(e.ageMonths)}.`;
-      const reward = `earned ${c.plural(e.contribution, POINTS)} for a finished task`;
-      if (e.sold === 0) return `${age} At the sect you ${reward}.`;
-      const sold = `At the sect you sold your trophies for ${c.plural(e.sold, STONES)}`;
-      return e.contribution > 0 ? `${age} ${sold} and ${reward}.` : `${age} ${sold}.`;
+      const tried = (e.batches ?? []).reduce((n, b) => n + b.tried, 0) + (e.forgeFailed ? 1 : 0);
+      const spoiled = (e.batches ?? []).reduce((n, b) => n + b.tried - b.made, 0) + (e.forgeFailed ? 1 : 0);
+      if (!deeds.length) {
+        return c.vary(
+          `${age} Everything in the sect workshop went wrong: the cauldron exploded, and your eyebrows took a month to grow back.`,
+          `${age} Nothing in the sect workshop worked. The master craftsman silently took back your key.`,
+        );
+      }
+      const loss =
+        spoiled === 0 || tried === 0
+          ? ''
+          : e.forgeFailed && spoiled === 1
+            ? ' The ore came out of the forge as slag.'
+            : c.vary(' Some of it was spoiled.', ' One cauldron did explode, though.');
+      return `${age} At the sect you ${joinList(deeds)}.${loss}`;
+    },
+    shop: (e, c) => {
+      const age = `You are ${c.age(e.ageMonths)}.`;
+      switch (e.action) {
+        case 'opened':
+          return `${age} You opened a shop of pills and herbs in the town below the mountain. The clerk steals, but in moderation.`;
+        case 'expanded':
+          return c.vary(
+            `${age} You bought out the shop next door: your business grew (level ${e.level}).`,
+            `${age} Your shop grew (level ${e.level}). Now you have two clerks, and they steal from each other.`,
+          );
+        case 'robbed':
+          return `${age} While you were on the road, your shop was robbed: ${c.plural(e.amount ?? 0, STONES)} gone.`;
+      }
     },
     technique: (e, c) =>
       isCultivation(e.technique)

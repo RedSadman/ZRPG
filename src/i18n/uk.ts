@@ -272,6 +272,14 @@ export const uk: Messages = {
     starfallPalm: 'Долоня Падучої Зірки',
     voidSeveringBlade: 'Клинок, що Розтинає Порожнечу',
   },
+  crafts: { alchemy: 'Алхімія', forging: 'Ковальство', talismans: 'Талісмани' },
+  products: {
+    healingPill: { one: '{n} пілюлю відновлення', few: '{n} пілюлі відновлення', many: '{n} пілюль відновлення', other: '{n} пілюлі відновлення' },
+    gatheringPill: { one: '{n} пілюлю збирання духу', few: '{n} пілюлі збирання духу', many: '{n} пілюль збирання духу', other: '{n} пілюлі збирання духу' },
+    gatePill: { one: 'пілюлю прориву', few: '{n} пілюлі прориву', many: '{n} пілюль прориву', other: '{n} пілюлі прориву' },
+    escapeTalisman: { one: '{n} талісман Тисячі Лі', few: '{n} талісмани Тисячі Лі', many: '{n} талісманів Тисячі Лі', other: '{n} талісмана Тисячі Лі' },
+    thunderTalisman: { one: '{n} громовий талісман', few: '{n} громові талісмани', many: '{n} громових талісманів', other: '{n} громового талісмана' },
+  },
   talents: {
     ironSkin: { name: 'Залізна шкіра', desc: "+10% до здоров'я в кожному сні" },
     quickStep: { name: 'Легкий крок', desc: 'Втеча вдається частіше' },
@@ -301,6 +309,8 @@ export const uk: Messages = {
         return 'Загартування';
       case 'knowledge':
         return `Знання: ${c.m.knowledge[r.key]!.name}`;
+      case 'craft':
+        return `Ремесло: ${c.m.crafts[r.craft]}, рівень ${r.level}`;
     }
   },
   rewardDesc: (r, c) => {
@@ -321,6 +331,8 @@ export const uk: Messages = {
           .join(', ');
       case 'knowledge':
         return c.m.knowledge[r.key]!.desc;
+      case 'craft':
+        return 'Руки пам’ятають: кожен сон починаєш із цією майстерністю';
     }
   },
   stats: { body: 'Тіло', qi: 'Ці', agi: 'Спритність', mind: 'Свідомість', luck: 'Удача' },
@@ -381,6 +393,7 @@ export const uk: Messages = {
       cultivation: 'Методи культивації',
       stats: 'Загартування',
       knowledge: 'Знання',
+      craft: 'Ремесла',
     },
     moveUp: 'Вище',
     moveDown: 'Нижче',
@@ -414,6 +427,13 @@ export const uk: Messages = {
     endingTitle: 'Вознесіння',
     endingText:
       'Ти розплющуєш очі. Патріарх Кривавого Місяця лежить біля порога корчми, а даос неквапно знімає казан з вогню. «Просо доварилось», — каже він. Тисяча снів скінчилася. Попереду — безсмертя.',
+    crafts: 'Ремесла',
+    materials: 'Матеріали, у каменях',
+    mats: { herbs: 'трави', cores: 'ядра звірів', ore: 'руда' },
+    gatheringPills: 'Пілюлі збирання духу',
+    talismans: 'Талісмани',
+    talismanKinds: { escape: 'Тисячі Лі', thunder: 'громові' },
+    shop: (n) => `Лавка в містечку, рівень ${n}`,
   },
   instincts: {
     cautious: {
@@ -554,6 +574,11 @@ export const uk: Messages = {
           return `${age} Ти ${c.g('відчув', 'відчула')} тиск чужої ці — ${foe.nom} (${c.level(e.enemyLevel)}) — і вчасно ${c.g('сховався', 'сховалася')}.`;
         case 'ambushed':
           return `${age} Ти ${c.g('намагався', 'намагалася')} обійти ${foe.acc}, але ${c.eg(e.enemy, 'він', 'вона')} тебе ${c.eg(e.enemy, 'наздогнав', 'наздогнала')}. Якимось дивом ти ${c.g('переміг', 'перемогла')}.`;
+        case 'escaped':
+          return c.vary(
+            `${age} ${cap(foe.nom)} уже ${c.eg(e.enemy, 'заносив', 'заносила')} останній удар, коли ти ${c.g('розірвав', 'розірвала')} талісман Тисячі Лі — і ${c.g('опинився', 'опинилася')} за сто лі звідти, ледь ${c.g('живий', 'жива')}.`,
+            `${age} Бій із ${foe.ins} ти ${c.g('програв', 'програла')}, але талісман Тисячі Лі спрацював раніше за ${c.eg(e.enemy, 'його', 'її')} останній удар. ${c.g('Отямився', 'Отямилася')} ти вже в канаві за три гори звідти.`,
+          );
       }
     },
     loot: (e, c) => {
@@ -593,11 +618,49 @@ export const uk: Messages = {
     pillWait: (e, c) =>
       `Тобі ${c.age(e.ageMonths)}. Ти ${c.g('готовий', 'готова')} до прориву до ${c.m.realms[realmKey(e.level)]!.gen}, але без пілюлі ризикувати не ${c.g('став', 'стала')}.`,
     sect: (e, c) => {
+      const deeds: string[] = [];
+      if (e.sold > 0) deeds.push(`${c.g('продав', 'продала')} трофеї й матеріали за ${c.plural(e.sold, STONES)}`);
+      if (e.income) deeds.push(`${c.g('забрав', 'забрала')} з лавки ${c.plural(e.income, STONES)}`);
+      const made = (craft: string) =>
+        (e.batches ?? [])
+          .filter((b) => b.craft === craft && b.made > 0)
+          // "зварила пілюлю", not "зварила 1 пілюлю".
+          .map((b) => c.plural(b.made, c.m.products[b.product]).replace(/^1 /, ''));
+      const pills = made('alchemy');
+      const talismans = made('talismans');
+      if (pills.length) deeds.push(`${c.g('зварив', 'зварила')} ${joinList(pills)}`);
+      if (talismans.length) deeds.push(`${c.g('накреслив', 'накреслила')} ${joinList(talismans)}`);
+      if (e.item) deeds.push(`${c.g('викував', 'викувала')} ${c.item(e.item, 'acc')} ${c.m.rankOf[e.item.rank]}`);
       const age = `Тобі ${c.age(e.ageMonths)}.`;
-      const reward = `${c.g('отримав', 'отримала')} ${c.plural(e.contribution, POINTS)} за виконане завдання`;
-      if (e.sold === 0) return `${age} У секті ти ${reward}.`;
-      const sold = `У секті ти ${c.g('продав', 'продала')} трофеї за ${c.plural(e.sold, STONES)}`;
-      return e.contribution > 0 ? `${age} ${sold} і ${reward}.` : `${age} ${sold}.`;
+      const tried = (e.batches ?? []).reduce((n, b) => n + b.tried, 0) + (e.forgeFailed ? 1 : 0);
+      const spoiled = (e.batches ?? []).reduce((n, b) => n + b.tried - b.made, 0) + (e.forgeFailed ? 1 : 0);
+      if (!deeds.length) {
+        return c.vary(
+          `${age} У майстерні секти все пішло в брак: казан вибухнув, і брови відростали ще місяць.`,
+          `${age} У майстерні секти нічого не вдалося. Старший майстер мовчки забрав у тебе ключ.`,
+        );
+      }
+      const loss =
+        spoiled === 0 || tried === 0
+          ? ''
+          : e.forgeFailed && spoiled === 1
+            ? ' Руда з ковальні вийшла шлаком.'
+            : c.vary(' Дещо пішло в брак.', ' Один казан, щоправда, вибухнув.');
+      return `${age} У секті ти ${joinList(deeds)}.${loss}`;
+    },
+    shop: (e, c) => {
+      const age = `Тобі ${c.age(e.ageMonths)}.`;
+      switch (e.action) {
+        case 'opened':
+          return `${age} Ти ${c.g('відкрив', 'відкрила')} лавку пілюль і трав у містечку під горою. Прикажчик краде, але в міру.`;
+        case 'expanded':
+          return c.vary(
+            `${age} Ти ${c.g('викупив', 'викупила')} сусідню крамницю: лавка розрослася (рівень ${e.level}).`,
+            `${age} Лавка розрослася (рівень ${e.level}). Тепер у тебе двоє прикажчиків, і вони крадуть одне в одного.`,
+          );
+        case 'robbed':
+          return `${age} Поки ти ${c.g('був', 'була')} в мандрах, лавку пограбували: зникло ${c.plural(e.amount ?? 0, STONES)}.`;
+      }
     },
     technique: (e, c) =>
       isCultivation(e.technique)

@@ -4,7 +4,7 @@ import type { Instinct } from '../data/instincts.ts';
 import { QUESTS } from '../data/quests.ts';
 import { chooseQuest, makeQuest } from './board.ts';
 import { enemyCombatant, heroCombatant } from './combat.ts';
-import { newLife } from './dream.ts';
+import { encounter, newLife } from './dream.ts';
 import { karmaLuck } from './hero.ts';
 import { estimateWin, perceivedWin } from './judgement.ts';
 import { qiToReach } from './levels.ts';
@@ -16,7 +16,7 @@ import type { GameState, Life } from './types.ts';
 function lifeAt(instinct: Instinct, level = 5): Life {
   const s = newGame(7);
   const hero = { ...s.hero, level, stats: { body: 9, qi: 9, agi: 9, mind: 8, luck: 6 } };
-  return { ...newLife(hero, 1, { instinct, path: hero.path, start: 'azureCloudSect', blessing: false }), pills: { healing: 2, breakthrough: null } };
+  return { ...newLife(hero, 1, { instinct, path: hero.path, start: 'azureCloudSect', blessing: false }), pills: { healing: 2, breakthrough: null, gathering: 0, eaten: 0 } };
 }
 
 function autoGame(seed: number, instinct: Instinct): GameState {
@@ -71,17 +71,15 @@ describe('the task board', () => {
 });
 
 describe('behaviour over whole dreams', () => {
-  it('the cautious slip away from more fights than the bold', () => {
+  it('the cautious slip away from a stronger foe more often than the bold', () => {
+    // The same meeting, many times: a grey wolf two stages above the hero.
     const avoided = (instinct: Instinct) => {
-      let total = 0;
-      for (let seed = 0; seed < 12; seed++) {
-        const s = advanceSteps(autoGame(seed, instinct), 400);
-        for (const e of s.journal) {
-          if (e.event.kind === 'hunt') total += e.event.avoided ?? 0;
-          if (e.event.kind === 'fight' && e.event.note === 'sensed') total += 1;
-        }
+      let n = 0;
+      for (let seed = 0; seed < 200; seed++) {
+        const s = { ...newGame(1), life: lifeAt(instinct) };
+        if (encounter(s, createRng(seed), () => {}, 'greyWolf', 7) === 'avoided') n++;
       }
-      return total;
+      return n;
     };
     expect(avoided('cautious')).toBeGreaterThan(avoided('bold'));
   });

@@ -1,5 +1,6 @@
 // Everything here must stay plain JSON: the save file is this state, and a future server will replay it.
 
+import type { CraftKey, Product } from '../data/crafts.ts';
 import type { Instinct } from '../data/instincts.ts';
 import type { QuestFoes, QuestKind } from '../data/quests.ts';
 import type { PathKey } from '../data/paths.ts';
@@ -29,6 +30,16 @@ export interface LearnedTechnique {
   uses: number;
 }
 
+/** Skill in each craft; the whole part is the level, the rest is practice towards the next. */
+export type Crafts = Record<CraftKey, number>;
+
+/** Crafting materials in the sect's storehouse, counted by their worth in spirit stones. */
+export interface Materials {
+  herbs: number;
+  cores: number;
+  ore: number;
+}
+
 /** A permanent trait carried from dream to dream. `enemy` is set for "memory of death" talents. */
 export interface Talent {
   key: string;
@@ -55,6 +66,8 @@ export interface Hero {
   knowledge: string[];
   /** Fate points, earned by good lives and spent on the next dream's setup. */
   fate: number;
+  /** Craft skill brought back from dreams; every dream starts with it. */
+  crafts: Crafts;
 }
 
 /** What the player decides before falling asleep; kept between dreams. */
@@ -84,7 +97,8 @@ export type Reward =
   | { kind: 'item'; item: Item }
   | { kind: 'talent'; talent: Talent }
   | { kind: 'stats'; stats: Partial<Stats> }
-  | { kind: 'knowledge'; key: string };
+  | { kind: 'knowledge'; key: string }
+  | { kind: 'craft'; craft: CraftKey; level: number };
 
 export type RewardKind = Reward['kind'];
 
@@ -154,7 +168,13 @@ export interface Life {
   bag: { trophyValue: number; trophies: number; items: Item[] };
   stones: number;
   contribution: number;
-  pills: { healing: number; breakthrough: string | null };
+  /** `gathering`: pills that speed up meditation; `eaten` of them at the current stage (the body takes only a few). */
+  pills: { healing: number; breakthrough: string | null; gathering: number; eaten: number };
+  talismans: { escape: number; thunder: number };
+  mats: Materials;
+  crafts: Crafts;
+  /** A shop in town: its level (0 = none) and the stones waiting in its till. */
+  shop: { level: number; till: number };
   techniques: LearnedTechnique[];
   cultivation: string;
   activity: Activity;
@@ -193,7 +213,15 @@ export interface Life {
   valor: number;
 }
 
-export type FightNote = 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed' | 'ambushed';
+export type FightNote = 'boss' | 'rival' | 'closeCall' | 'stronger' | 'fled' | 'rescued' | 'sensed' | 'ambushed' | 'escaped';
+
+/** One kind of product made in one visit to the workshop. */
+export interface WorkshopBatch {
+  craft: CraftKey;
+  product: Product;
+  made: number;
+  tried: number;
+}
 
 export type GameEvent =
   | { kind: 'dreamStart'; dream: number }
@@ -208,7 +236,20 @@ export type GameEvent =
   | { kind: 'tribulation'; ageMonths: number; level: number; bolts: number; survived: boolean }
   | { kind: 'secret'; ageMonths: number; secret: string }
   | { kind: 'finalBattle'; won: boolean }
-  | { kind: 'sect'; ageMonths: number; sold: number; contribution: number }
+  | {
+      /** A visit to the sect, in one line: what was sold, what the shop earned, what came out of the workshop. */
+      kind: 'sect';
+      ageMonths: number;
+      sold: number;
+      contribution: number;
+      income?: number;
+      batches?: WorkshopBatch[];
+      /** Forged and put on. */
+      item?: Item;
+      /** Ore and cores went into the forge and nothing worth wearing came out. */
+      forgeFailed?: boolean;
+    }
+  | { kind: 'shop'; ageMonths: number; action: 'opened' | 'expanded' | 'robbed'; level: number; amount?: number }
   | { kind: 'technique'; ageMonths: number; technique: string }
   | { kind: 'stageUp'; ageMonths: number; level: number; months: number }
   | { kind: 'realmUp'; ageMonths: number; level: number; pill: boolean }
