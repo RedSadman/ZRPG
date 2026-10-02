@@ -1,0 +1,16 @@
+{
+  "name": "Сон Жовтого Проса / Yellow Millet Dream",
+  "short_name": "Сон Проса",
+  "description": "Zero-player xianxia RPG: while the millet cooks, you live a whole life.",
+  "lang": "uk",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#17150f",
+  "theme_color": "#201d16",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

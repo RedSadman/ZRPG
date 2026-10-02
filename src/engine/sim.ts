@@ -16,9 +16,10 @@ import {
   realBreakthrough,
   realityBeat,
 } from './reality.ts';
-import type { DreamSetup, DreamSummary, GameEvent, GameState, Life, RewardKind } from './types.ts';
+import type { DreamSetup, DreamSummary, GameEvent, GameState, Life, LifetimeStats, RewardKind } from './types.ts';
 
 export { START_AGE_MONTHS } from './dream.ts';
+import { START_AGE_MONTHS } from './dream.ts';
 
 export const JOURNAL_LIMIT = 500;
 export const CHRONICLE_LIMIT = 100;
@@ -47,6 +48,7 @@ export function newGame(seed: number): GameState {
     journal: [],
     nextEntryId: 1,
     chronicle: [],
+    stats: emptyStats(),
   };
   beginDream(state);
   state.rngState = rng.state;
@@ -181,6 +183,8 @@ function takeReward(s: GameState, index: number, auto: boolean, rng: Rng): void 
   const reward = s.offer?.[index];
   if (!reward) return;
   record(s, { kind: 'reward', dream: s.life.n, reward, auto });
+  const summary = s.chronicle.at(-1);
+  if (summary?.n === s.life.n) summary.reward = reward;
   applyReward(s, reward, rng, emitter(s));
   s.offer = null;
   s.phase = 'resting';
@@ -220,6 +224,7 @@ function wake(s: GameState, rng: Rng): void {
   s.chronicle.push(summary);
   if (s.chronicle.length > CHRONICLE_LIMIT) s.chronicle.splice(0, s.chronicle.length - CHRONICLE_LIMIT);
   s.dreamsEnded += 1;
+  countDream(s.stats, life, summary);
   s.hero.fate += fateFor(summary.score);
   record(s, { kind: 'wake', dream: life.n, score: summary.score });
   s.offer = makeOffer(s.hero, life, summary.score, rng);
@@ -237,6 +242,40 @@ export function lifeScore(life: Life): number {
   );
 }
 
+export function emptyStats(): LifetimeStats {
+  const none = { value: 0, dream: 0 };
+  return {
+    dreams: 0,
+    months: 0,
+    kills: 0,
+    bosses: 0,
+    deaths: { killed: 0, oldAge: 0, deviation: 0, tribulation: 0 },
+    killers: {},
+    byInstinct: {},
+    best: { level: { ...none }, age: { ...none }, score: { ...none } },
+  };
+}
+
+/** Adds a finished dream to the lifetime statistics. */
+export function countDream(stats: LifetimeStats, life: Life, summary: DreamSummary): void {
+  stats.dreams += 1;
+  stats.months += Math.max(0, summary.ageMonths - START_AGE_MONTHS);
+  stats.kills += summary.kills;
+  stats.bosses += life.bossesKilled.length;
+  stats.deaths[summary.death.cause] = (stats.deaths[summary.death.cause] ?? 0) + 1;
+  const killer = summary.death.enemy;
+  if (killer) stats.killers[killer] = (stats.killers[killer] ?? 0) + 1;
+  const mine = (stats.byInstinct[life.instinct] ??= { dreams: 0, score: 0 });
+  mine.dreams += 1;
+  mine.score += summary.score;
+  const beat = (record: { value: number; dream: number }, value: number) => {
+    if (value > record.value) Object.assign(record, { value, dream: summary.n });
+  };
+  beat(stats.best.level, summary.level);
+  beat(stats.best.age, summary.ageMonths);
+  beat(stats.best.score, summary.score);
+}
+
 function summarize(life: Life): DreamSummary {
   const top = life.highlights
     .map((h, i) => ({ ...h, i }))
@@ -245,6 +284,8 @@ function summarize(life: Life): DreamSummary {
     .sort((a, b) => a.i - b.i)
     .map((h) => h.event);
   return {
+    instinct: life.instinct,
+    path: life.path,
     n: life.n,
     ageMonths: life.ageMonths,
     level: life.level,

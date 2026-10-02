@@ -3,6 +3,7 @@ import type { Instinct } from '../data/instincts.ts';
 import type { PathKey } from '../data/paths.ts';
 import type { RootKey } from '../data/roots.ts';
 import type {
+  DeathCause,
   DreamSummary,
   EventKind,
   GameEvent,
@@ -175,6 +176,22 @@ export interface Messages {
     talismans: string;
     talismanKinds: Record<TalismanKind, string>;
     shop: (level: number) => string;
+    statistics: string;
+    statDreams: string;
+    statYears: string;
+    statKills: string;
+    statBosses: string;
+    wakings: string;
+    deathCauses: Record<DeathCause, string>;
+    nemeses: string;
+    records: string;
+    recordLevel: (level: string, dream: number) => string;
+    recordAge: (age: string, dream: number) => string;
+    recordScore: (score: number, dream: number) => string;
+    byInstinct: string;
+    instinctRow: (dreams: number, avgScore: number) => string;
+    chronicleHint: (shown: number) => string;
+    carriedOut: (title: string) => string;
   };
   instincts: Record<Instinct, { name: string; desc: string }>;
   /** "полювання на сірого духовного вовка" — what a task is, for the journal and the panel. */

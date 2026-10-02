@@ -308,6 +308,22 @@ export const en: Messages = {
     talismans: 'Talismans',
     talismanKinds: { escape: 'Thousand-Li', thunder: 'thunder' },
     shop: (n) => `Shop in town, level ${n}`,
+    statistics: 'Statistics',
+    statDreams: 'Dreams lived',
+    statYears: 'Years dreamed',
+    statKills: 'Foes defeated',
+    statBosses: 'Bosses slain',
+    wakings: 'How the dreams ended',
+    deathCauses: { killed: 'killed in battle', oldAge: 'old age', deviation: 'qi deviation', tribulation: 'Heavenly Tribulation' },
+    nemeses: 'Who killed you most',
+    records: 'Records',
+    recordLevel: (level, n) => `Highest realm: ${level} (dream #${n})`,
+    recordAge: (age, n) => `Longest life: ${age} (dream #${n})`,
+    recordScore: (score, n) => `Best score: ${score} (dream #${n})`,
+    byInstinct: 'By instinct',
+    instinctRow: (dreams, avg) => `${dreams} dreams, average score ${avg}`,
+    chronicleHint: (n) => `The last ${n} dreams. Click a dream to recall the details.`,
+    carriedOut: (title) => `Carried out of the dream: ${title}`,
   },
   instincts: {
     cautious: { name: 'Cautious', desc: 'Avoids any fight it is not sure to win. Lives longer, but misses a lot' },
@@ -424,9 +440,15 @@ export const en: Messages = {
             `${age} ${cap(the(foe))} demanded that you bow. You bowed — and struck from below.`,
           );
         case 'closeCall':
-          return `${age} The fight with ${the(foe)} nearly became your last, but you held on.`;
+          return c.vary(
+            `${age} The fight with ${the(foe)} nearly became your last, but you held on.`,
+            `${age} After the fight with ${the(foe)} you spent a long time counting your ribs. All present. Mostly.`,
+          );
         case 'stronger':
-          return `${age} You defeated ${a(foe)} stronger than yourself (${c.level(e.enemyLevel)}).`;
+          return c.vary(
+            `${age} You defeated ${a(foe)} stronger than yourself (${c.level(e.enemyLevel)}).`,
+            `${age} ${cap(the(foe))} (${c.level(e.enemyLevel)}) took you for easy prey. It was a fatal mistake.`,
+          );
         case 'fled':
           return c.vary(
             `${age} Seeing what ${the(foe)} could do, you made a tactical retreat so fast you nearly invented a new movement technique.`,
@@ -435,7 +457,10 @@ export const en: Messages = {
         case 'rescued':
           return `${age} ${cap(the(foe))} left you to die in a ditch, but somehow you survived.`;
         case 'sensed':
-          return `${age} You felt the pressure of a stranger's qi — ${a(foe)} (${c.level(e.enemyLevel)}) — and hid in time.`;
+          return c.vary(
+            `${age} You felt the pressure of a stranger's qi — ${a(foe)} (${c.level(e.enemyLevel)}) — and hid in time.`,
+            `${age} The ground trembled: ${a(foe)} (${c.level(e.enemyLevel)}) was walking nearby. You took another path.`,
+          );
         case 'ambushed':
           return `${age} You tried to slip past ${the(foe)}, but it caught up with you. Somehow, you won.`;
         case 'escaped':
@@ -475,11 +500,21 @@ export const en: Messages = {
       if (e.declined) {
         return `${age} Task done: ${desc}. You refused the ${c.plural(e.quest.stones, STONES)} — “I have not earned it.” The sect still recorded ${c.plural(e.quest.contribution, POINTS)}.${bonus}`;
       }
-      return `${age} Task done: ${desc}. The sect paid ${c.plural(e.quest.stones, STONES)} and ${c.plural(e.quest.contribution, POINTS)}.${bonus}`;
+      return c.vary(
+        `${age} Task done: ${desc}. The sect paid ${c.plural(e.quest.stones, STONES)} and ${c.plural(e.quest.contribution, POINTS)}.${bonus}`,
+        `${age} ${cap(desc)}: done. The treasurer counted out ${c.plural(e.quest.stones, STONES)} and wrote down ${c.plural(e.quest.contribution, POINTS)}.${bonus}`,
+      );
     },
-    questFailed: (e, c) => `You are ${c.age(e.ageMonths)}. Task failed: ${c.m.questDesc(e.quest, c)}. Your standing in the sect slipped a little.`,
+    questFailed: (e, c) =>
+      c.vary(
+        `You are ${c.age(e.ageMonths)}. Task failed: ${c.m.questDesc(e.quest, c)}. Your standing in the sect slipped a little.`,
+        `You are ${c.age(e.ageMonths)}. Task failed: ${c.m.questDesc(e.quest, c)}. The senior brother at the task board did not even look up.`,
+      ),
     pillWait: (e, c) =>
-      `You are ${c.age(e.ageMonths)}. You are ready to break through to ${realmName(c.m, e.level)}, but you will not risk it without a pill.`,
+      c.vary(
+        `You are ${c.age(e.ageMonths)}. You are ready to break through to ${realmName(c.m, e.level)}, but you will not risk it without a pill.`,
+        `You are ${c.age(e.ageMonths)}. Your meridians hum with qi, but without a pill you dare not knock on the gate of ${realmName(c.m, e.level)}. A little more meditation never hurt.`,
+      ),
     sect: (e, c) => {
       const deeds: string[] = [];
       if (e.sold > 0) deeds.push(`sold trophies and materials for ${c.plural(e.sold, STONES)}`);
@@ -525,7 +560,10 @@ export const en: Messages = {
     technique: (e, c) =>
       isCultivation(e.technique)
         ? `You are ${c.age(e.ageMonths)}. The sect library opened the cultivation method “${c.m.techniques[e.technique]}” to you.`
-        : `You are ${c.age(e.ageMonths)}. In the sect library you mastered the technique “${c.m.techniques[e.technique]}”.`,
+        : c.vary(
+            `You are ${c.age(e.ageMonths)}. In the sect library you mastered the technique “${c.m.techniques[e.technique]}”.`,
+            `You are ${c.age(e.ageMonths)}. Three sleepless nights in the library, and you walked out knowing “${c.m.techniques[e.technique]}”.`,
+          ),
     stageUp: (e, c) => {
       const where = `${realmName(c.m, e.level)}, ${c.m.stage(stageOf(e.level))}`;
       return c.vary(
@@ -541,7 +579,10 @@ export const en: Messages = {
       return `You are ${c.age(e.ageMonths)}. The sky above the cave darkened, qi surged through your meridians — you broke through to ${realmName(c.m, e.level)}!${pill}`;
     },
     breakthroughFail: (e, c) =>
-      `You are ${c.age(e.ageMonths)}. The breakthrough to ${realmName(c.m, e.level)} failed: qi lashed your meridians, and you coughed blood for a year.`,
+      c.vary(
+        `You are ${c.age(e.ageMonths)}. The breakthrough to ${realmName(c.m, e.level)} failed: qi lashed your meridians, and you coughed blood for a year.`,
+        `You are ${c.age(e.ageMonths)}. The breakthrough to ${realmName(c.m, e.level)} slipped away at the last moment. You spent a year flat on your back, studying the ceiling of your cell.`,
+      ),
     wall: (e, c) =>
       `You are ${c.age(e.ageMonths)}. You stand at the peak of Dao Union. Beyond it lies only Ascension, and no dream can grant that. You become a sect elder and teach the young.`,
     tribulation: (e, c) => {
@@ -566,14 +607,29 @@ export const en: Messages = {
           return c.vary(`${age} ${cap(the(foe))} proved stronger. You died.`, `${age} The last thing you saw was ${the(foe)}. You died.`);
         }
         case 'oldAge':
-          return `${age} You died quietly of old age in your cell.`;
+          return c.vary(
+            `${age} You died quietly of old age in your cell.`,
+            `${age} You fell asleep over a cup of tea and did not wake. Your disciples say the tea was still warm.`,
+            `${age} Your heart stopped at dawn, in the middle of meditation. The calmest death you remember.`,
+          );
         case 'deviation':
-          return `${age} Your qi spun out of control. All that was left of you was a scorched mat.`;
+          return c.vary(
+            `${age} Your qi spun out of control. All that was left of you was a scorched mat.`,
+            `${age} Your qi rushed down the wrong meridians, and you burned out from within like an untended stove.`,
+          );
         case 'tribulation':
-          return `${age} All that was left of you was a scorched mark on the rock. Heaven would not let you rise.`;
+          return c.vary(
+            `${age} All that was left of you was a scorched mark on the rock. Heaven would not let you rise.`,
+            `${age} Heaven took one look at you and decided it was too early.`,
+          );
       }
     },
-    wake: (e) => `You wake up in the inn. The millet is not done yet. Dream #${e.dream} is over; life score ${e.score}.`,
+    wake: (e, c) =>
+      c.vary(
+        `You wake up in the inn. The millet is not done yet. Dream #${e.dream} is over; life score ${e.score}.`,
+        `You open your eyes. The Taoist is still stirring the millet. Dream #${e.dream} is behind you; life score ${e.score}.`,
+        `The inn, the smell of millet, a creaking bench. Dream #${e.dream} is over; life score ${e.score}.`,
+      ),
     away: (e, c) => `While you were away, ${c.plural(e.months, MONTHS)} passed in dreams; dreams finished: ${e.dreamsEnded}.`,
     reward: (e, c) => `On waking, you took with you: ${c.m.rewardTitle(e.reward, c)}${e.auto ? ' (autopilot)' : ''}.`,
     realStageUp: (e, c) =>

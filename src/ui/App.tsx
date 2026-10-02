@@ -32,6 +32,7 @@ import {
 } from '../engine/reality.ts';
 import { SECRETS } from '../data/knowledge.ts';
 import { Icon } from './Icon.tsx';
+import { ChroniclePanel, StatsPanel } from './Chronicle.tsx';
 import { MapPanel } from './MapPanel.tsx';
 import type { Crafts, GameState } from '../engine/types.ts';
 import { TICK_MS, startTicker, ticksSince } from '../clock/clock.ts';
@@ -42,7 +43,18 @@ import { levelLabel, narrate, narrateEntry, narrateSummary, narrationContext } f
 
 const AUTOSAVE_MS = 30_000;
 const SPEEDS = [1, 3, 10];
-const CHRONICLE_SHOWN = 10;
+const TABS = ['journal', 'chronicle', 'stats'] as const;
+type Tab = (typeof TABS)[number];
+const TAB_KEY = 'zrpg.tab';
+
+function loadTab(): Tab {
+  try {
+    const saved = localStorage.getItem(TAB_KEY);
+    return (TABS as readonly string[]).includes(saved ?? '') ? (saved as Tab) : 'journal';
+  } catch {
+    return 'journal';
+  }
+}
 
 function randomSeed(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0] ?? 1;
@@ -66,6 +78,15 @@ export function App() {
   const [game, setGame] = useState(initial.state);
   const [locale, setLocale] = useState<Locale>(() => loadLocale(localStorage));
   const [speed, setSpeed] = useState(1);
+  const [tab, setTab] = useState<Tab>(loadTab);
+  const chooseTab = (next: Tab) => {
+    setTab(next);
+    try {
+      localStorage.setItem(TAB_KEY, next);
+    } catch {
+      // A remembered tab is a convenience; without storage it simply resets.
+    }
+  };
   const lastTickAt = useRef(initial.lastTickAt);
   const gameRef = useRef(game);
   gameRef.current = game;
@@ -263,35 +284,31 @@ export function App() {
             </section>
           )}
 
-          <section class="panel journal">
-            <h2>{m.ui.journal}</h2>
-            <ol>
-              {game.journal
-                .slice()
-                .reverse()
-                .map((entry) => (
-                  <li key={entry.id} class={`entry entry-${entry.event.kind}`}>
-                    {narrateEntry(entry, game, locale)}
-                  </li>
-                ))}
-            </ol>
-          </section>
+          <div class="tabs segmented" role="tablist">
+            {TABS.map((t) => (
+              <button key={t} role="tab" aria-selected={tab === t} aria-pressed={tab === t} onClick={() => chooseTab(t)}>
+                {t === 'journal' ? m.ui.journal : t === 'chronicle' ? m.ui.chronicle : m.ui.statistics}
+              </button>
+            ))}
+          </div>
 
-          <section class="panel chronicle">
-            <h2>{m.ui.chronicle}</h2>
-            {game.chronicle.length === 0 ? (
-              <p class="muted">{m.ui.noDreamsYet}</p>
-            ) : (
+          {tab === 'chronicle' && <ChroniclePanel game={game} locale={locale} />}
+          {tab === 'stats' && <StatsPanel game={game} locale={locale} />}
+          {tab === 'journal' && (
+            <section class="panel journal">
+              <h2>{m.ui.journal}</h2>
               <ol>
-                {game.chronicle
-                  .slice(-CHRONICLE_SHOWN)
+                {game.journal
+                  .slice()
                   .reverse()
-                  .map((s) => (
-                    <li key={s.n}>{narrateSummary(s, game, locale)}</li>
+                  .map((entry) => (
+                    <li key={entry.id} class={`entry entry-${entry.event.kind}`}>
+                      {narrateEntry(entry, game, locale)}
+                    </li>
                   ))}
               </ol>
-            )}
-          </section>
+            </section>
+          )}
         </main>
       </div>
     </div>

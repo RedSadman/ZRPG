@@ -611,3 +611,79 @@ button.action.final {
   color: var(--rank-3);
   font-weight: 600;
 }
+
+/* --- Milestone 8: tabs, chronicle, statistics --- */
+
+.tabs {
+  background: var(--panel);
+  margin-bottom: 12px;
+}
+
+.chronicle details > summary {
+  cursor: pointer;
+}
+
+.chronicle details[open] > summary {
+  font-weight: 600;
+}
+
+.chronicle details .highlights {
+  margin: 6px 0;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.tiles > div {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.tiles dt {
+  font-size: 0.8rem;
+  color: var(--ink-quiet);
+}
+
+.tiles dd {
+  margin: 2px 0 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bars li {
+  display: grid;
+  grid-template-columns: minmax(110px, 30%) 1fr 3em;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.bar {
+  display: block;
+  height: 8px;
+  min-width: 2px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.bar-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.nemeses {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.nemeses li {
+  display: flex;
+  justify-content: space-between;
+  max-width: 360px;
+}

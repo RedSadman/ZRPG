@@ -286,6 +286,10 @@ export interface JournalEntry {
 
 /** What is left of a dream after waking: the Chronicle of Lives. */
 export interface DreamSummary {
+  instinct?: Instinct;
+  path?: PathKey;
+  /** What the hero carried out of it, once chosen. */
+  reward?: Reward;
   /** Where the dream ended, for the map. */
   zone?: string;
   n: number;
@@ -295,6 +299,26 @@ export interface DreamSummary {
   score: number;
   kills: number;
   highlights: GameEvent[];
+}
+
+/** A record and the dream that set it. */
+export interface DreamRecord {
+  value: number;
+  dream: number;
+}
+
+/** Counts over every dream ever dreamed; the Chronicle keeps only the latest ones. */
+export interface LifetimeStats {
+  dreams: number;
+  /** Months lived in dreams, from joining the sect to waking. */
+  months: number;
+  kills: number;
+  bosses: number;
+  deaths: Record<DeathCause, number>;
+  /** Who ended the most dreams, by enemy key. */
+  killers: Record<string, number>;
+  byInstinct: Partial<Record<Instinct, { dreams: number; score: number }>>;
+  best: { level: DreamRecord; age: DreamRecord; score: DreamRecord };
 }
 
 export interface GameState {
@@ -322,4 +346,5 @@ export interface GameState {
   journal: JournalEntry[];
   nextEntryId: number;
   chronicle: DreamSummary[];
+  stats: LifetimeStats;
 }

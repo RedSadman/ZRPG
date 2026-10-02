@@ -84,4 +84,22 @@ describe('App', () => {
     expect(root.querySelector('.entry-forkResult')?.textContent).toContain('повз');
     render(null, root);
   });
+
+  it('keeps the Chronicle and the statistics behind tabs', async () => {
+    pinSeed(4);
+    const root = await mount();
+    for (let i = 0; i < 600 && !root.querySelector('.choose:not(.fork)'); i++) await beats(5);
+    await act(() => root.querySelector<HTMLButtonElement>('.choose:not(.fork) .offer')!.click());
+
+    const tab = (label: string) => [...root.querySelectorAll<HTMLButtonElement>('.tabs button')].find((b) => b.textContent === label)!;
+    await act(() => tab('Хроніка Життів').click());
+    expect(root.querySelector('.journal')).toBeNull();
+    expect(root.querySelectorAll('.chronicle details')).toHaveLength(1);
+    expect(root.querySelector('.chronicle')?.textContent).toContain('Винесено зі сну');
+
+    await act(() => tab('Статистика').click());
+    expect(root.querySelector('.stats-panel .tiles dd')?.textContent).toBe('1');
+    expect(root.textContent).not.toMatch(/undefined|NaN/);
+    render(null, root);
+  });
 });

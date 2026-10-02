@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advanceMonths, newGame } from '../engine/sim.ts';
+import { advanceMonths, advanceSteps, newGame, setAutopilot } from '../engine/sim.ts';
 import { SAVE_VERSION, deserialize, serialize } from './save.ts';
 
 describe('save', () => {
@@ -54,5 +54,20 @@ describe('save migration', () => {
     expect(file.state.life.mats).toEqual({ herbs: 0, cores: 0, ore: 0 });
     expect(file.state.autopilot.priority).toContain('craft');
     expect(() => advanceMonths(file.state, 200)).not.toThrow();
+  });
+
+  it('upgrades a v8 save: lifetime statistics are rebuilt from the Chronicle', () => {
+    // Two finished dreams, rewards taken by the autopilot.
+    let v9 = setAutopilot({ ...newGame(5), charges: 99 }, true);
+    for (let i = 0; i < 20_000 && v9.chronicle.length < 2; i++) v9 = advanceSteps(v9, 1);
+    expect(v9.chronicle.length).toBe(2);
+    const { stats: _s, ...state } = v9;
+    const v8 = { version: 8, savedAt: 0, lastTickAt: 0, state };
+
+    const file = deserialize(JSON.stringify(v8))!;
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(file.state.stats.dreams).toBe(v9.chronicle.length);
+    expect(file.state.stats.kills).toBe(v9.stats.kills);
+    expect(file.state.stats.best.level).toEqual(v9.stats.best.level);
   });
 });

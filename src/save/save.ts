@@ -2,10 +2,11 @@ import { PATHS } from '../data/paths.ts';
 import { CULTIVATION_TECHNIQUES } from '../data/techniques.ts';
 import { startingCrafts } from '../engine/crafts.ts';
 import { CHARGE_MAX, DEFAULT_PRIORITY } from '../engine/reality.ts';
-import type { GameState } from '../engine/types.ts';
+import { countDream, emptyStats } from '../engine/sim.ts';
+import type { DreamSummary, GameState, Life } from '../engine/types.ts';
 
 export const SAVE_KEY = 'zrpg.save';
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export interface SaveFile {
   version: number;
@@ -94,6 +95,15 @@ const migrations: Record<number, (old: SaveFile) => SaveFile> = {
     const priority: string[] = s.autopilot.priority;
     if (!priority.includes('craft')) priority.splice(Math.max(0, priority.indexOf('cultivation')), 0, 'craft');
     return { ...old, version: 8, state: s as GameState };
+  },
+  // v8 → v9: lifetime statistics, rebuilt as well as the Chronicle allows (it keeps only the latest dreams).
+  8: (old) => {
+    const s = old.state as any;
+    s.stats = emptyStats();
+    for (const summary of s.chronicle as DreamSummary[]) {
+      countDream(s.stats, { instinct: summary.instinct ?? s.setup.instinct, bossesKilled: [] } as unknown as Life, summary);
+    }
+    return { ...old, version: 9, state: s as GameState };
   },
 };
 

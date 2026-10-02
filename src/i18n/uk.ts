@@ -434,6 +434,22 @@ export const uk: Messages = {
     talismans: 'Талісмани',
     talismanKinds: { escape: 'Тисячі Лі', thunder: 'громові' },
     shop: (n) => `Лавка в містечку, рівень ${n}`,
+    statistics: 'Статистика',
+    statDreams: 'Снів прожито',
+    statYears: 'Років уві сні',
+    statKills: 'Переможено ворогів',
+    statBosses: 'Повалено босів',
+    wakings: 'Як скінчилися сни',
+    deathCauses: { killed: 'загибель у бою', oldAge: 'старість', deviation: 'відхилення ці', tribulation: 'Небесна кара' },
+    nemeses: 'Хто вбивав найчастіше',
+    records: 'Рекорди',
+    recordLevel: (level, n) => `Найвище царство: ${level} (сон №${n})`,
+    recordAge: (age, n) => `Найдовше життя: ${age} (сон №${n})`,
+    recordScore: (score, n) => `Найкраща оцінка: ${score} (сон №${n})`,
+    byInstinct: 'За інстинктами',
+    instinctRow: (dreams, avg) => `снів: ${dreams}, середня оцінка ${avg}`,
+    chronicleHint: (n) => `Останні сни: ${n}. Натисни на сон, щоб згадати подробиці.`,
+    carriedOut: (title) => `Винесено зі сну: ${title}`,
   },
   instincts: {
     cautious: {
@@ -560,9 +576,15 @@ export const uk: Messages = {
             `${age} ${cap(foe.nom)} ${c.eg(e.enemy, 'вимагав', 'вимагала')}, щоб ти ${c.g('вклонився', 'вклонилася')}. Ти ${c.g('вклонився', 'вклонилася')} — і ${c.g('вдарив', 'вдарила')} знизу.`,
           );
         case 'closeCall':
-          return `${age} Бій із ${foe.ins} ледь не став для тебе останнім, але ти ${c.g('вистояв', 'вистояла')}.`;
+          return c.vary(
+            `${age} Бій із ${foe.ins} ледь не став для тебе останнім, але ти ${c.g('вистояв', 'вистояла')}.`,
+            `${age} Після бою з ${foe.ins} ти ще довго ${c.g('рахував', 'рахувала')} ребра. Усі на місці. Майже.`,
+          );
         case 'stronger':
-          return `${age} Ти ${c.g('здолав', 'здолала')} ${foe.acc} — ворога, сильнішого за тебе (${c.level(e.enemyLevel)}).`;
+          return c.vary(
+            `${age} Ти ${c.g('здолав', 'здолала')} ${foe.acc} — ворога, сильнішого за тебе (${c.level(e.enemyLevel)}).`,
+            `${age} ${cap(foe.nom)} (${c.level(e.enemyLevel)}) ${c.eg(e.enemy, 'вважав', 'вважала')} тебе легкою здобиччю. Ця помилка стала для ${c.eg(e.enemy, 'нього', 'неї')} останньою.`,
+          );
         case 'fled':
           return c.vary(
             `${age} Побачивши, на що ${c.eg(e.enemy, 'здатен', 'здатна')} ${foe.nom}, ти ${c.g('здійснив', 'здійснила')} тактичний відступ такої швидкості, що мало не ${c.g('осягнув', 'осягнула')} нову техніку руху.`,
@@ -571,7 +593,10 @@ export const uk: Messages = {
         case 'rescued':
           return `${age} ${cap(foe.nom)} ${c.eg(e.enemy, 'залишив', 'залишила')} тебе помирати в канаві, але ти якимось дивом ${c.g('вижив', 'вижила')}.`;
         case 'sensed':
-          return `${age} Ти ${c.g('відчув', 'відчула')} тиск чужої ці — ${foe.nom} (${c.level(e.enemyLevel)}) — і вчасно ${c.g('сховався', 'сховалася')}.`;
+          return c.vary(
+            `${age} Ти ${c.g('відчув', 'відчула')} тиск чужої ці — ${foe.nom} (${c.level(e.enemyLevel)}) — і вчасно ${c.g('сховався', 'сховалася')}.`,
+            `${age} Земля під ногами затремтіла: десь поруч ${c.eg(e.enemy, 'ходив', 'ходила')} ${foe.nom} (${c.level(e.enemyLevel)}). Ти ${c.g('пішов', 'пішла')} іншою стежкою.`,
+          );
         case 'ambushed':
           return `${age} Ти ${c.g('намагався', 'намагалася')} обійти ${foe.acc}, але ${c.eg(e.enemy, 'він', 'вона')} тебе ${c.eg(e.enemy, 'наздогнав', 'наздогнала')}. Якимось дивом ти ${c.g('переміг', 'перемогла')}.`;
         case 'escaped':
@@ -611,12 +636,21 @@ export const uk: Messages = {
       if (e.declined) {
         return `${age} Завдання виконано: ${desc}. Від ${c.plural(e.quest.stones, STONES_GEN)} ти ${c.g('відмовився', 'відмовилася')}: «Я цього не ${c.g('заслужив', 'заслужила')}». Секта записала тобі ${c.plural(e.quest.contribution, POINTS)}.${bonus}`;
       }
-      return `${age} Завдання виконано: ${desc}. Секта заплатила ${c.plural(e.quest.stones, STONES)} і ${c.plural(e.quest.contribution, POINTS)}.${bonus}`;
+      return c.vary(
+        `${age} Завдання виконано: ${desc}. Секта заплатила ${c.plural(e.quest.stones, STONES)} і ${c.plural(e.quest.contribution, POINTS)}.${bonus}`,
+        `${age} ${cap(desc)} — виконано. Скарбник відрахував ${c.plural(e.quest.stones, STONES)} і записав ${c.plural(e.quest.contribution, POINTS)}.${bonus}`,
+      );
     },
     questFailed: (e, c) =>
-      `Тобі ${c.age(e.ageMonths)}. Завдання провалено: ${c.m.questDesc(e.quest, c)}. Репутація в секті трохи похитнулася.`,
+      c.vary(
+        `Тобі ${c.age(e.ageMonths)}. Завдання провалено: ${c.m.questDesc(e.quest, c)}. Репутація в секті трохи похитнулася.`,
+        `Тобі ${c.age(e.ageMonths)}. Завдання провалено: ${c.m.questDesc(e.quest, c)}. Старший брат біля дошки завдань навіть не підвів очей.`,
+      ),
     pillWait: (e, c) =>
-      `Тобі ${c.age(e.ageMonths)}. Ти ${c.g('готовий', 'готова')} до прориву до ${c.m.realms[realmKey(e.level)]!.gen}, але без пілюлі ризикувати не ${c.g('став', 'стала')}.`,
+      c.vary(
+        `Тобі ${c.age(e.ageMonths)}. Ти ${c.g('готовий', 'готова')} до прориву до ${c.m.realms[realmKey(e.level)]!.gen}, але без пілюлі ризикувати не ${c.g('став', 'стала')}.`,
+        `Тобі ${c.age(e.ageMonths)}. Меридіани гудуть від ці, але без пілюлі постукати у ворота ${c.m.realms[realmKey(e.level)]!.gen} ти не ${c.g('наважився', 'наважилася')}. Ще трохи медитації не завадить.`,
+      ),
     sect: (e, c) => {
       const deeds: string[] = [];
       if (e.sold > 0) deeds.push(`${c.g('продав', 'продала')} трофеї й матеріали за ${c.plural(e.sold, STONES)}`);
@@ -665,7 +699,10 @@ export const uk: Messages = {
     technique: (e, c) =>
       isCultivation(e.technique)
         ? `Тобі ${c.age(e.ageMonths)}. Бібліотека секти відкрила тобі метод культивації «${c.m.techniques[e.technique]}».`
-        : `Тобі ${c.age(e.ageMonths)}. У бібліотеці секти ти ${c.g('осягнув', 'осягнула')} техніку «${c.m.techniques[e.technique]}».`,
+        : c.vary(
+            `Тобі ${c.age(e.ageMonths)}. У бібліотеці секти ти ${c.g('осягнув', 'осягнула')} техніку «${c.m.techniques[e.technique]}».`,
+            `Тобі ${c.age(e.ageMonths)}. Три безсонні ночі в бібліотеці — і ти ${c.g('вийшов', 'вийшла')} звідти з технікою «${c.m.techniques[e.technique]}».`,
+          ),
     stageUp: (e, c) => {
       const realm = c.m.realms[realmKey(e.level)]!.gen;
       const stage = c.m.stageGen(stageOf(e.level));
@@ -683,7 +720,10 @@ export const uk: Messages = {
       return `Тобі ${c.age(e.ageMonths)}. Небо над печерою потемніло, ці ринула в меридіани — ти ${c.g('прорвався', 'прорвалася')} до ${realm}!${pill}`;
     },
     breakthroughFail: (e, c) =>
-      `Тобі ${c.age(e.ageMonths)}. Прорив до ${c.m.realms[realmKey(e.level)]!.gen} провалився: ці вдарила в меридіани, і ще рік ти ${c.g('харкав', 'харкала')} кров'ю.`,
+      c.vary(
+        `Тобі ${c.age(e.ageMonths)}. Прорив до ${c.m.realms[realmKey(e.level)]!.gen} провалився: ці вдарила в меридіани, і ще рік ти ${c.g('харкав', 'харкала')} кров'ю.`,
+        `Тобі ${c.age(e.ageMonths)}. Прорив до ${c.m.realms[realmKey(e.level)]!.gen} зірвався в останню мить. Рік ти ${c.g('пролежав', 'пролежала')} пластом, вивчаючи стелю келії.`,
+      ),
     wall: (e, c) =>
       `Тобі ${c.age(e.ageMonths)}. Ти ${c.g('досяг', 'досягла')} піку Злиття з Дао. Вище — лише Вознесіння, але у сні його не досягти. Ти стаєш старійшиною секти й навчаєш молодших.`,
     tribulation: (e, c) => {
@@ -716,14 +756,29 @@ export const uk: Messages = {
           );
         }
         case 'oldAge':
-          return `${age} Ти тихо ${c.g('помер', 'померла')} від старості у своїй келії.`;
+          return c.vary(
+            `${age} Ти тихо ${c.g('помер', 'померла')} від старості у своїй келії.`,
+            `${age} Ти ${c.g('заснув', 'заснула')} над чашкою чаю і більше не ${c.g('прокинувся', 'прокинулася')}. Учні кажуть, чай був ще теплий.`,
+            `${age} Твоє серце зупинилося на світанку, посеред медитації. Найспокійніша смерть, яку ти пам'ятаєш.`,
+          );
         case 'deviation':
-          return `${age} Ці вийшла з-під контролю. Від тебе лишилася тільки обвуглена циновка.`;
+          return c.vary(
+            `${age} Ці вийшла з-під контролю. Від тебе лишилася тільки обвуглена циновка.`,
+            `${age} Ці рвонула не тими меридіанами, і ти ${c.g('згорів', 'згоріла')} зсередини, як недоглянута піч.`,
+          );
         case 'tribulation':
-          return `${age} Від тебе лишився тільки обвуглений слід на скелі. Небо не пустило тебе вище.`;
+          return c.vary(
+            `${age} Від тебе лишився тільки обвуглений слід на скелі. Небо не пустило тебе вище.`,
+            `${age} Небо подивилося на тебе й вирішило, що ще зарано.`,
+          );
       }
     },
-    wake: (e) => `Ти прокидаєшся в корчмі. Просо ще не доварилось. Сон №${e.dream} завершено, оцінка життя — ${e.score}.`,
+    wake: (e, c) =>
+      c.vary(
+        `Ти прокидаєшся в корчмі. Просо ще не доварилось. Сон №${e.dream} завершено, оцінка життя — ${e.score}.`,
+        `Ти розплющуєш очі. Даос досі помішує просо. Сон №${e.dream} позаду, оцінка життя — ${e.score}.`,
+        `Корчма, запах проса, рипіння лави. Сон №${e.dream} скінчився; оцінка життя — ${e.score}.`,
+      ),
     away: (e, c) =>
       `Поки тебе не було, у снах минуло ${c.plural(e.months, MONTHS)}; завершено снів: ${e.dreamsEnded}.`,
     reward: (e, c) =>
